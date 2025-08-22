@@ -1,0 +1,65 @@
+package main
+
+import "LogS/shared"
+
+func (w *WorklogService) GenerateDailyReports(period shared.Period, dailyHours map[string]float64, dailyTickets map[string][]string) []shared.DailyReport {
+	var reports []shared.DailyReport
+
+	for d := period.Start; !d.After(period.End); d = d.AddDate(0, 0, 1) {
+		date := d.Format(DateFormat)
+		day := d.Weekday().String()[:DayNameLength]
+
+		report := shared.DailyReport{
+			Date:    date,
+			Day:     day,
+			Hours:   dailyHours[date],
+			Tickets: dailyTickets[date],
+		}
+
+		if IsWeekend(d) {
+			report.Status = shared.DayWeekend
+		} else if report.Hours >= RequiredHoursPerDay {
+			report.Status = shared.DayCompliant
+		} else if report.Hours > ZeroHours {
+			report.Status = shared.DayPartial
+		} else {
+			report.Status = shared.DayMissing
+		}
+
+		reports = append(reports, report)
+	}
+
+	return reports
+}
+
+func (w *WorklogService) GenerateSummary(period shared.Period, reports []shared.DailyReport, ticketLogs map[string]*shared.TicketWorklog) shared.Summary {
+	summary := shared.Summary{
+		StartDate:    period.Start.Format(DateFormat),
+		EndDate:      period.End.Format(DateFormat),
+		TotalTickets: len(ticketLogs),
+	}
+
+	for _, report := range reports {
+		if report.Status == shared.DayWeekend {
+			continue
+		}
+
+		summary.Workdays++
+		summary.LoggedHours += report.Hours
+
+		switch report.Status {
+		case shared.DayCompliant:
+			summary.CompliantDays = append(summary.CompliantDays, report.Date)
+			summary.LoggedDays++
+		case shared.DayPartial:
+			summary.PartialDays = append(summary.PartialDays, report.Date)
+			summary.LoggedDays++
+		case shared.DayMissing:
+			summary.MissingDays = append(summary.MissingDays, report.Date)
+		}
+	}
+
+	summary.RequiredHours = float64(summary.Workdays) * RequiredHoursPerDay
+
+	return summary
+}

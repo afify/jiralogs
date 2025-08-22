@@ -1,1 +1,5 @@
 .env
+logs
+CLAUDE.md
+TODO.md
+errors.log
