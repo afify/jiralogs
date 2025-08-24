@@ -5,7 +5,7 @@ import (
 
 	"LogS/shared"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 func (m *AppModel) handleMainMenuKeys(msg tea.KeyMsg) tea.Cmd {
@@ -16,22 +16,30 @@ func (m *AppModel) handleMainMenuKeys(msg tea.KeyMsg) tea.Cmd {
 			switch i.title {
 			case "📊 View Worklogs":
 				if len(m.ticketLogs) > 0 {
-					m.pushView(WorklogDisplayView)
+					m.pushView(StatsView)
 				} else {
-					m.currentView = LoadingView
+					m.progressPopup.ShowWithSteps("Loading Worklogs", []string{
+						"Fetching worklogs from JIRA",
+						"Processing tickets",
+						"Calculating statistics",
+					})
 					return m.loadWorklogsWithProgress("Loading worklogs...")
 				}
 			case "⏰ Log Time":
-				m.currentView = LoadingView
+				m.progressPopup.Show("Loading Time Logging", "Preparing time logging interface...")
 				return m.loadTimeLoggingWithProgress()
 			case "🎫 Create Ticket":
-				m.currentView = LoadingView
+				m.progressPopup.Show("Loading Ticket Creation", "Preparing ticket creation form...")
 				return m.loadTicketCreationWithProgress()
 			case "📅 Filter Period":
-				m.currentView = LoadingView
+				m.progressPopup.Show("Loading Period Selection", "Loading period options...")
 				return m.loadPeriodSelectionWithProgress()
 			case "🔄 Refresh":
-				m.currentView = LoadingView
+				m.progressPopup.ShowWithSteps("Refreshing Data", []string{
+					"Fetching latest from JIRA",
+					"Processing worklogs",
+					"Updating statistics",
+				})
 				return m.loadWorklogsWithProgress("Refreshing data...")
 			case "❌ Quit":
 				return tea.Quit
@@ -71,24 +79,14 @@ func (m *AppModel) handlePeriodSelectionKeys(msg tea.KeyMsg) tea.Cmd {
 			}
 
 			m.period = shared.Period{Start: start, End: now}
-			m.currentView = LoadingView
+			m.currentView = StatsView // Go to stats view
+			m.progressPopup.ShowWithSteps("Loading Period Data", []string{
+				"Fetching worklogs for selected period",
+				"Processing data",
+				"Calculating statistics",
+			})
 			return m.loadWorklogsWithProgress("Loading data for new period...")
 		}
-	}
-	return nil
-}
-
-func (m *AppModel) handleWorklogDisplayKeys(msg tea.KeyMsg) tea.Cmd {
-	switch msg.String() {
-	case "l":
-		m.currentView = LoadingView
-		return m.loadTimeLoggingWithProgress()
-	case "c":
-		m.currentView = LoadingView
-		return m.loadTicketCreationWithProgress()
-	case "r":
-		m.currentView = LoadingView
-		return m.loadWorklogsWithProgress("Refreshing worklogs...")
 	}
 	return nil
 }

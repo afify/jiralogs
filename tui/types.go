@@ -9,3 +9,20 @@ type timeLoggedMsg struct {
 	hours     float64
 	date      string
 }
+
+// Initialization messages
+type initStepMsg struct {
+	Step    string
+	Current int
+	Total   int
+}
+
+type initCompleteMsg struct {
+	client  JiraClientInterface
+	service WorklogServiceInterface
+}
+
+type initErrorMsg struct {
+	err     error
+	details string
+}

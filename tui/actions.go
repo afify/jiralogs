@@ -1,9 +1,11 @@
 package tui
 
 import (
+	"fmt"
+
 	"LogS/shared"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 func (m *AppModel) loadWorklogsWithProgress(message string) tea.Cmd {
@@ -19,10 +21,10 @@ func (m *AppModel) loadWorklogsWithProgress(message string) tea.Cmd {
 		"Calculating summary...",
 		"Preparing display...",
 	}
-	m.currentView = LoadingView
+	// Show progress popup for loading
+	m.progressPopup.ShowWithSteps("Loading Worklogs", m.loadingSteps)
 
 	return tea.Batch(
-		m.progressBar.SetPercent(0),
 		SimulateProgressSteps(),
 		LoadWorklogsWithProgress(m.service, m.period),
 	)
@@ -56,8 +58,10 @@ func (m *AppModel) loadTimeLoggingWithProgress() tea.Cmd {
 		"Ready!",
 	}
 
+	// Show progress popup
+	m.progressPopup.ShowWithSteps("Preparing Time Logging", m.loadingSteps)
+
 	return tea.Batch(
-		m.progressBar.SetPercent(0),
 		SimulateActionProgress(timeLoggingReadyMsg{}),
 	)
 }
@@ -74,8 +78,10 @@ func (m *AppModel) loadTicketCreationWithProgress() tea.Cmd {
 		"Ready!",
 	}
 
+	// Show progress popup
+	m.progressPopup.ShowWithSteps("Preparing Ticket Creation", m.loadingSteps)
+
 	return tea.Batch(
-		m.progressBar.SetPercent(0),
 		SimulateActionProgress(ticketCreationReadyMsg{}),
 	)
 }
@@ -91,12 +97,38 @@ func (m *AppModel) loadPeriodSelectionWithProgress() tea.Cmd {
 		"Ready!",
 	}
 
+	// Show progress popup
+	m.progressPopup.ShowWithSteps("Loading Period Selection", m.loadingSteps)
+
 	return tea.Batch(
-		m.progressBar.SetPercent(0),
 		SimulateActionProgress(periodSelectionReadyMsg{}),
 	)
 }
 
 func (m *AppModel) getEmailFromConfig() string {
 	return m.client.GetConfiguredEmail()
+}
+
+func (m *AppModel) startInitialization() tea.Cmd {
+	return func() tea.Msg {
+		if m.initFunc == nil {
+			return initErrorMsg{
+				err:     fmt.Errorf("initialization function not provided"),
+				details: "No initialization function was provided",
+			}
+		}
+
+		client, service, err := m.initFunc()
+		if err != nil {
+			return initErrorMsg{
+				err:     err,
+				details: fmt.Sprintf("Initialization failed: %v", err),
+			}
+		}
+
+		return initCompleteMsg{
+			client:  client,
+			service: service,
+		}
+	}
 }

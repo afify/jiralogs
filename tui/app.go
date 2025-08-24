@@ -1,8 +1,12 @@
 package tui
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
+	"LogS/internal/tui/components/logo"
+	"LogS/internal/tui/styles"
 	"LogS/shared"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -11,20 +15,20 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss/v2"
 )
 
 type ViewType int
 
 const (
-	MainMenuView ViewType = iota
+	InitializationView ViewType = iota
+	MainMenuView
 	PeriodSelectionView
-	WorklogDisplayView
+	StatsView // Main stats dashboard
+	TicketDetailsView
 	TimeLoggingView
 	TicketCreationView
-	LoadingView
-	ErrorView
 )
 
 type AppModel struct {
@@ -39,14 +43,15 @@ type AppModel struct {
 	period      shared.Period
 	currentUser *shared.JiraUser
 
-	mainMenu    list.Model
-	periodList  list.Model
-	ticketTable table.Model
-	textInputs  []textinput.Model
-	activeInput int
-	spinner     spinner.Model
-	progressBar progress.Model
-	viewport    viewport.Model
+	mainMenu          list.Model
+	periodList        list.Model
+	ticketTable       table.Model
+	textInputs        []textinput.Model
+	activeInput       int
+	spinner           spinner.Model
+	viewport          viewport.Model
+	progressPopup     ProgressPopup     // Progress popup overlay
+	notificationPopup NotificationPopup // Notification popup overlay
 
 	loading         bool
 	loadingMsg      string
@@ -58,8 +63,15 @@ type AppModel struct {
 	width           int
 	height          int
 	ready           bool
-}
 
+	// Initialization tracking
+	initSteps       []string
+	initCurrentStep int
+	initError       error
+	initialized     bool
+	initStarted     bool
+	initFunc        InitFunc
+}
 
 type errMsg struct {
 	err     error
@@ -90,11 +102,32 @@ type periodSelectionReadyMsg struct{}
 
 func (e errMsg) Error() string { return e.err.Error() }
 
-func NewApp(client JiraClientInterface, service WorklogServiceInterface) *AppModel {
+type InitFunc func() (JiraClientInterface, WorklogServiceInterface, error)
+
+func NewApp(initFunc InitFunc) *AppModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = SpinnerStyle
 
+	return &AppModel{
+		currentView:       InitializationView,
+		spinner:           s,
+		progressPopup:     NewProgressPopup(),
+		notificationPopup: NewNotificationPopup(),
+		initSteps: []string{
+			"Loading environment configuration",
+			"Connecting to JIRA API",
+			"Authenticating user",
+			"Initializing worklog service",
+			"Setting up UI components",
+		},
+		initCurrentStep: 0,
+		initialized:     false,
+		initFunc:        initFunc,
+	}
+}
+
+func (m *AppModel) setupUIComponents() {
 	menuItems := []list.Item{
 		menuItem{title: "📊 View Worklogs", desc: "Check your current worklog status"},
 		menuItem{title: "⏰ Log Time", desc: "Log missing time to tickets"},
@@ -125,29 +158,21 @@ func NewApp(client JiraClientInterface, service WorklogServiceInterface) *AppMod
 	periodList.SetFilteringEnabled(false)
 	periodList.Styles.Title = ListTitleStyle
 
-	prog := progress.New(progress.WithDefaultGradient())
-
 	now := time.Now()
 	start := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
 
-	return &AppModel{
-		currentView:  MainMenuView,
-		client:       client,
-		service:      service,
-		mainMenu:     mainMenuList,
-		periodList:   periodList,
-		spinner:      s,
-		progressBar:  prog,
-		period:       shared.Period{Start: start, End: now},
-		ticketLogs:   make(map[string]*shared.TicketLogData),
-		loadingSteps: []string{},
-	}
+	m.mainMenu = mainMenuList
+	m.periodList = periodList
+	m.period = shared.Period{Start: start, End: now}
+	m.ticketLogs = make(map[string]*shared.TicketLogData)
 }
 
 func (m *AppModel) Init() tea.Cmd {
+	// Always get window size first, then start other operations
 	return tea.Batch(
+		tea.WindowSize(), // Get terminal size immediately
 		m.spinner.Tick,
-		m.loadCurrentUser(),
+		// Don't start initialization yet - wait for window size
 	)
 }
 
@@ -155,15 +180,20 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+	// Always handle window size first, regardless of view
+	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = wsMsg.Width
+		m.height = wsMsg.Height
 		m.ready = true
 
+		// Log terminal dimensions
+		shared.LogError("TERMINAL_SIZE", fmt.Errorf("Terminal resized - Width: %d, Height: %d", m.width, m.height))
+
 		frameH, frameV := ContentStyle.GetFrameSize()
-		contentWidth := msg.Width - frameH
-		contentHeight := msg.Height - frameV - 12
+		contentWidth := wsMsg.Width - frameH
+		contentHeight := wsMsg.Height - frameV - 12
+
+		shared.LogError("CONTENT_AREA", fmt.Errorf("Content area after frame - Width: %d, Height: %d (frameH: %d, frameV: %d)", contentWidth, contentHeight, frameH, frameV))
 
 		if contentHeight < 5 {
 			contentHeight = 5
@@ -172,8 +202,11 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			contentWidth = 20
 		}
 
-		m.mainMenu.SetSize(contentWidth, contentHeight)
-		m.periodList.SetSize(contentWidth, contentHeight)
+		// Only update sizes if components are initialized
+		if m.initialized {
+			m.mainMenu.SetSize(contentWidth, contentHeight)
+			m.periodList.SetSize(contentWidth, contentHeight)
+		}
 
 		if m.viewport.Width == 0 {
 			m.viewport = viewport.New(contentWidth, contentHeight-5)
@@ -190,10 +223,40 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ticketTable.SetHeight(tableHeight)
 		}
 
+		// Start initialization after we have window dimensions
+		if m.currentView == InitializationView && !m.initStarted {
+			m.initStarted = true
+			return m, m.startInitialization()
+		}
+	}
+
+	// Handle other message types
+	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		// Don't process keys if popups are visible
+		if m.progressPopup.visible || m.notificationPopup.visible {
+			if m.progressPopup.visible {
+				popup, cmd := m.progressPopup.Update(msg)
+				m.progressPopup = popup
+				return m, cmd
+			}
+			if m.notificationPopup.visible {
+				popup, cmd := m.notificationPopup.Update(msg)
+				m.notificationPopup = popup
+				return m, cmd
+			}
+		}
+
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "q", "Q":
+			// Quit the application globally
 			return m, tea.Quit
+		case "h", "H":
+			// Return to home (stats page)
+			if m.currentView != StatsView && m.currentView != InitializationView {
+				m.viewStack = []ViewType{}
+				m.currentView = StatsView
+			}
 		case "esc":
 			if len(m.viewStack) > 0 && m.currentView != MainMenuView {
 				m.previousView = m.currentView
@@ -209,8 +272,10 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = m.handleMainMenuKeys(msg)
 		case PeriodSelectionView:
 			cmd = m.handlePeriodSelectionKeys(msg)
-		case WorklogDisplayView:
-			cmd = m.handleWorklogDisplayKeys(msg)
+		case StatsView:
+			cmd = m.HandleStatsInput(msg)
+		case TicketDetailsView:
+			cmd = m.HandleTicketDetailsInput(msg)
 		case TimeLoggingView:
 			cmd = m.handleTimeLoggingKeys(msg)
 		}
@@ -219,39 +284,177 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 
+	case initStepMsg:
+		m.initCurrentStep++
+		m.progressPercent = float64(m.initCurrentStep) / float64(len(m.initSteps))
+		return m, nil
+
+	case initCompleteMsg:
+		m.client = msg.client
+		m.service = msg.service
+		m.initialized = true
+		m.setupUIComponents()
+
+		// Set up year-to-date period
+		now := time.Now()
+		yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+		m.period = shared.Period{Start: yearStart, End: now}
+
+		// Load worklogs immediately with progress popup
+		m.currentView = StatsView // Set to stats view immediately
+		m.progressPopup.ShowWithSteps("Loading Worklogs", []string{
+			"Fetching user information",
+			"Loading year-to-date worklogs",
+			"Processing ticket data",
+			"Calculating statistics",
+		})
+
+		return m, tea.Batch(
+			m.loadCurrentUser(),
+			LoadWorklogsWithProgress(m.service, m.period),
+		)
+
+	case initErrorMsg:
+		m.initError = msg.err
+		m.error = msg.err
+		m.errorDetails = msg.details
+		m.progressPopup.Hide()
+		m.notificationPopup.ShowError("Initialization Error", msg.err.Error())
+
 	case errMsg:
 		m.error = msg.err
 		m.errorDetails = msg.details
 		m.loading = false
-		m.currentView = ErrorView
+		m.progressPopup.Hide()
+		m.notificationPopup.ShowError("Error", msg.err.Error())
 
 	case ticketsLoadedMsg:
 		m.ticketLogs = msg.ticketLogs
 		m.summary = msg.summary
 		m.loading = false
 		m.progressPercent = 1.0
-		m.currentView = MainMenuView
+		// Hide progress popup
+		m.progressPopup.Hide()
+		// Go directly to stats view instead of menu
+		m.currentView = StatsView
 
 	case userLoadedMsg:
 		m.currentUser = msg.user
 
 	case timeLoggingReadyMsg:
 		m.loading = false
+		m.progressPopup.Hide()
 		m.currentView = TimeLoggingView
 
 	case ticketCreationReadyMsg:
 		m.loading = false
+		m.progressPopup.Hide()
 		m.currentView = TicketCreationView
 
 	case periodSelectionReadyMsg:
 		m.loading = false
+		m.progressPopup.Hide()
 		m.currentView = PeriodSelectionView
+
+	case ShowProgressMsg:
+		if len(msg.Steps) > 0 {
+			m.progressPopup.ShowWithSteps(msg.Title, msg.Steps)
+		} else {
+			m.progressPopup.Show(msg.Title, msg.Message)
+		}
+
+	case ShowProgressWithButtonsMsg:
+		m.progressPopup.ShowWithButtons(msg.Title, msg.Message, msg.Buttons)
+
+	case UpdateProgressMsg:
+		m.progressPopup.SetProgress(msg.Percent)
+		if msg.Message != "" {
+			m.progressPopup.SetMessage(msg.Message)
+		}
+
+	case CompleteProgressMsg:
+		m.progressPopup.SetComplete(msg.Message)
+
+	case ErrorProgressMsg:
+		m.progressPopup.SetError(msg.Error)
+
+	case PopupActionMsg:
+		// Handle popup button actions
+		switch msg.Action {
+		case "OK":
+			// Just hide the popup for OK
+			m.progressPopup.Hide()
+		case "Retry":
+			// Retry the last operation
+			m.progressPopup.Hide()
+			// Show progress popup and retry loading worklogs
+			m.progressPopup.ShowWithSteps("Retrying", []string{
+				"Reconnecting to JIRA",
+				"Fetching worklogs",
+				"Processing data",
+			})
+			return m, LoadWorklogsWithProgress(m.service, m.period)
+		case "Cancel":
+			// Cancel and go back
+			m.progressPopup.Hide()
+			if len(m.viewStack) > 0 {
+				m.currentView = m.viewStack[len(m.viewStack)-1]
+				m.viewStack = m.viewStack[:len(m.viewStack)-1]
+			}
+		}
+
+	case NextStepMsg:
+		m.progressPopup.NextStep()
+
+	// Notification popup messages
+	case ShowNotificationMsg:
+		switch msg.Type {
+		case NotificationSuccess:
+			m.notificationPopup.ShowSuccess(msg.Title, msg.Message)
+		case NotificationError:
+			m.notificationPopup.ShowError(msg.Title, msg.Message)
+		case NotificationWarning:
+			m.notificationPopup.ShowWarning(msg.Title, msg.Message)
+		case NotificationInfo:
+			m.notificationPopup.ShowInfo(msg.Title, msg.Message)
+		}
+
+	case ShowNotificationWithButtonsMsg:
+		m.notificationPopup.ShowWithButtons(msg.Type, msg.Title, msg.Message, msg.Buttons)
+
+	case NotificationActionMsg:
+		// Handle notification button actions
+		switch msg.Action {
+		case "OK":
+			// Just hide the notification
+			m.notificationPopup.Hide()
+		case "Retry":
+			// Retry the last operation
+			m.notificationPopup.Hide()
+			// Show progress popup and retry loading worklogs
+			m.progressPopup.ShowWithSteps("Retrying", []string{
+				"Reconnecting to JIRA",
+				"Fetching worklogs",
+				"Processing data",
+			})
+			return m, LoadWorklogsWithProgress(m.service, m.period)
+		case "Cancel":
+			// Cancel and go back
+			m.notificationPopup.Hide()
+			if len(m.viewStack) > 0 {
+				m.currentView = m.viewStack[len(m.viewStack)-1]
+				m.viewStack = m.viewStack[:len(m.viewStack)-1]
+			}
+		}
 
 	case progressMsg:
 		m.progressPercent = msg.percent
 		m.loadingMsg = msg.step
-		cmd := m.progressBar.SetPercent(msg.percent)
-		cmds = append(cmds, cmd)
+		// Update progress popup if visible
+		m.progressPopup.SetProgress(msg.percent)
+		if msg.step != "" {
+			m.progressPopup.SetMessage(msg.step)
+		}
 
 	case stepCompleteMsg:
 		m.currentStep++
@@ -264,19 +467,37 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinner, cmd = m.spinner.Update(msg)
 			cmds = append(cmds, cmd)
 		}
+		// Also update progress popup spinner
+		if m.progressPopup.visible {
+			popup, cmd := m.progressPopup.Update(msg)
+			m.progressPopup = popup
+			cmds = append(cmds, cmd)
+		}
+
+	case progress.FrameMsg:
+		// Update progress popup's progress bar
+		if m.progressPopup.visible {
+			popup, cmd := m.progressPopup.Update(msg)
+			m.progressPopup = popup
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	switch m.currentView {
+	case InitializationView:
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
 	case MainMenuView:
 		m.mainMenu, cmd = m.mainMenu.Update(msg)
 		cmds = append(cmds, cmd)
 	case PeriodSelectionView:
 		m.periodList, cmd = m.periodList.Update(msg)
 		cmds = append(cmds, cmd)
-	case WorklogDisplayView:
+	case StatsView:
+		// Stats view no longer has table or viewport
+	case TicketDetailsView:
+		// Ticket details handles its own table updates
 		m.ticketTable, cmd = m.ticketTable.Update(msg)
-		cmds = append(cmds, cmd)
-		m.viewport, cmd = m.viewport.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
@@ -288,40 +509,231 @@ func (m *AppModel) View() string {
 		return "\n  Initializing..."
 	}
 
-	banner := RenderBanner()
-	header := m.renderHeaderInfo()
+	// Special handling for initialization view
+	if m.currentView == InitializationView {
+		return m.renderInitializationView()
+	}
+
+	shared.LogError("VIEW_RENDER", fmt.Errorf("Starting render for view: %v, Width: %d, Height: %d", m.currentView, m.width, m.height))
+
+	// Use the Crush-style logo with Crush's theme
+	t := styles.CurrentTheme()
+	logoOpts := logo.Opts{
+		FieldColor:   t.Primary,
+		TitleColorA:  t.Secondary,
+		TitleColorB:  t.Primary,
+		CharmColor:   t.Primary,
+		VersionColor: t.FgMuted,
+		Width:        0,
+	}
+	banner := logo.Render("v1.0.0", false, logoOpts)
+	bannerHeight := strings.Count(banner, "\n") + 1
+	shared.LogError("COMPONENT_BANNER", fmt.Errorf("Banner height: %d lines", bannerHeight))
+
+	// Get page title based on current view
+	var pageTitle string
+	switch m.currentView {
+	case StatsView:
+		pageTitle = "📊 WORKLOG STATISTICS"
+	case MainMenuView:
+		pageTitle = "🏠 MAIN MENU"
+	case PeriodSelectionView:
+		pageTitle = "📅 SELECT PERIOD"
+	case TicketDetailsView:
+		pageTitle = "📋 TICKET DETAILS"
+	case TimeLoggingView:
+		pageTitle = "⏰ LOG TIME"
+	case TicketCreationView:
+		pageTitle = "🎫 CREATE TICKET"
+	}
 
 	var content string
 	switch m.currentView {
-	case LoadingView:
-		content = m.renderLoadingView()
-	case ErrorView:
-		content = m.renderErrorView()
 	case MainMenuView:
 		content = m.renderMainMenuView()
 	case PeriodSelectionView:
 		content = m.renderPeriodSelectionView()
-	case WorklogDisplayView:
-		content = m.renderWorklogDisplayView()
+	case StatsView:
+		content = m.renderStatsView()
+	case TicketDetailsView:
+		content = m.renderTicketDetailsView()
 	case TimeLoggingView:
 		content = m.renderTimeLoggingView()
 	case TicketCreationView:
 		content = m.renderTicketCreationView()
 	}
 
-	help := m.renderHelpLine()
+	contentHeight := strings.Count(content, "\n") + 1
+	shared.LogError("COMPONENT_CONTENT", fmt.Errorf("Content height for %v: %d lines", m.currentView, contentHeight))
 
-	bannerWithHeader := lipgloss.JoinHorizontal(lipgloss.Top, banner, header)
+	help := m.renderHelpLine()
+	helpHeight := strings.Count(help, "\n") + 1
+	shared.LogError("COMPONENT_HELP", fmt.Errorf("Help line height: %d lines", helpHeight))
+
+	// Calculate available width for proper spacing, accounting for frame
+	// Frame adds 2 chars for left/right borders + 2 chars for padding on each side = 4 total
+	frameHorizontalSpace := 4
+	availableWidth := m.width - frameHorizontalSpace
+
+	shared.LogError("WIDTH_CALC", fmt.Errorf("Terminal width: %d, Frame H space: %d, Available width: %d",
+		m.width, frameHorizontalSpace, availableWidth))
+
+	// Use just the banner
+	topBar := banner
+	topBarHeight := strings.Count(topBar, "\n") + 1
+	shared.LogError("COMPONENT_TOPBAR", fmt.Errorf("TopBar height: %d lines", topBarHeight))
+
+	// Create a nice separator line
+	separatorStyle := lipgloss.NewStyle().
+		Foreground(shared.DarkGray).
+		Width(availableWidth)
+	separator := separatorStyle.Render(strings.Repeat("─", availableWidth))
+	separatorHeight := strings.Count(separator, "\n") + 1
+	shared.LogError("COMPONENT_SEPARATOR", fmt.Errorf("Separator height: %d lines", separatorHeight))
+
+	// Create page title
+	pageTitleRendered := ""
+	if pageTitle != "" {
+		titleStyle := lipgloss.NewStyle().
+			Foreground(shared.PrimaryColor).
+			Bold(true).
+			Background(shared.BgLight).
+			Padding(0, 3)
+		pageTitleRendered = lipgloss.PlaceHorizontal(availableWidth, lipgloss.Center, titleStyle.Render(pageTitle))
+	}
+	pageTitleHeight := strings.Count(pageTitleRendered, "\n") + 1
+	shared.LogError("COMPONENT_PAGE_TITLE", fmt.Errorf("Page title height: %d lines", pageTitleHeight))
+
+	// Calculate space needed to push help to bottom
+	// Don't add 1 to the last component since we're counting newlines
+	usedHeight := strings.Count(topBar, "\n") + 1 +
+		strings.Count(separator, "\n") + 1 +
+		strings.Count(pageTitleRendered, "\n") + 1 +
+		strings.Count(content, "\n") + 1 +
+		strings.Count(help, "\n") // No +1 for the last item
+
+	// Account for frame (adds 4 lines total - top/bottom borders and padding)
+	frameHeight := 4 // Frame adds top border, bottom border, and padding lines
+	availableHeight := m.height - frameHeight
+	spacerLines := availableHeight - usedHeight - 2 // Subtract 2 more to account for content being 2 lines too tall
+
+	shared.LogError("SPACER_CALC", fmt.Errorf("Used: %d, Available: %d, Spacer lines needed: %d",
+		usedHeight, availableHeight, spacerLines))
+
+	// Ensure we don't overflow the terminal
+	if spacerLines < 0 {
+		spacerLines = 0
+	}
+
+	// Create vertical spacer to push help to bottom
+	verticalSpacer := ""
+	if spacerLines > 0 {
+		verticalSpacer = strings.Repeat("\n", spacerLines)
+	}
+
+	// Log the exact position where footer will appear
+	footerStartLine := usedHeight + spacerLines
+	shared.LogError("FOOTER_LOCATION", fmt.Errorf("Footer will be at line %d of %d (with %d spacer lines)",
+		footerStartLine, availableHeight, spacerLines))
 
 	fullContent := lipgloss.JoinVertical(lipgloss.Left,
-		bannerWithHeader,
-		"",
+		topBar,
+		separator,
+		pageTitleRendered,
 		content,
-		"",
+		verticalSpacer,
 		help,
 	)
 
-	return FrameStyle.Render(fullContent)
+	totalHeight := strings.Count(fullContent, "\n") + 1
+	shared.LogError("TOTAL_HEIGHT", fmt.Errorf("Total content height before frame: %d lines", totalHeight))
+
+	// Render the base content
+	baseView := FrameStyle.Render(fullContent)
+
+	finalHeight := strings.Count(baseView, "\n") + 1
+	shared.LogError("FINAL_HEIGHT", fmt.Errorf("Final height after frame: %d lines, Terminal height: %d", finalHeight, m.height))
+
+	// If progress popup is visible, overlay it on top
+	if m.progressPopup.visible {
+		return m.overlayPopup(baseView, m.progressPopup.View())
+	}
+
+	// If notification popup is visible, overlay it on top
+	if m.notificationPopup.visible {
+		return m.overlayPopup(baseView, m.notificationPopup.View())
+	}
+
+	return baseView
+}
+
+// overlayPopup renders a popup over the base view
+func (m *AppModel) overlayPopup(baseView, popupView string) string {
+	if m.width == 0 || m.height == 0 || popupView == "" {
+		return baseView
+	}
+
+	// Split views into lines
+	baseLines := strings.Split(baseView, "\n")
+	popupLines := strings.Split(popupView, "\n")
+
+	// Center the popup
+	popupHeight := len(popupLines)
+	popupWidth := 0
+	for _, line := range popupLines {
+		if w := lipgloss.Width(line); w > popupWidth {
+			popupWidth = w
+		}
+	}
+
+	// Calculate popup position
+	startY := (m.height - popupHeight) / 2
+	startX := (m.width - popupWidth) / 2
+
+	if startY < 0 {
+		startY = 0
+	}
+	if startX < 0 {
+		startX = 0
+	}
+
+	// Create result lines, starting with base view
+	result := make([]string, len(baseLines))
+	copy(result, baseLines)
+
+	// Ensure we have enough lines
+	for len(result) < m.height {
+		result = append(result, "")
+	}
+
+	// Overlay popup lines
+	for i, popupLine := range popupLines {
+		targetY := startY + i
+		if targetY >= 0 && targetY < len(result) {
+			// Get the base line
+			baseLine := result[targetY]
+			baseWidth := lipgloss.Width(baseLine)
+
+			// Pad base line if needed
+			if baseWidth < startX {
+				baseLine = baseLine + strings.Repeat(" ", startX-baseWidth)
+			}
+
+			// Create the overlaid line
+			if startX > 0 && len(baseLine) > 0 {
+				// Keep part of base before popup
+				before := baseLine
+				if lipgloss.Width(before) > startX {
+					before = string([]rune(before)[:startX])
+				}
+				result[targetY] = before + popupLine
+			} else {
+				result[targetY] = popupLine
+			}
+		}
+	}
+
+	return strings.Join(result, "\n")
 }
 
 func (m *AppModel) pushView(view ViewType) {

@@ -2,17 +2,14 @@ package tui
 
 import (
 	"fmt"
-	"time"
 
 	"LogS/shared"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 func LoadWorklogsWithProgress(service WorklogServiceInterface, period shared.Period) tea.Cmd {
 	return func() tea.Msg {
-		time.Sleep(200 * time.Millisecond)
-
 		ticketLogs, dailyHours, dailyTickets, err := service.FetchWorklogs(period)
 		if err != nil {
 			return errMsg{

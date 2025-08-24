@@ -1,26 +1,29 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"LogS/shared"
+	"github.com/charmbracelet/lipgloss/v2"
+)
 
 var (
 	BannerStyle = lipgloss.NewStyle().
-			Foreground(DarkBlue).
+			Foreground(shared.DarkBlue).
 			Bold(true)
 
 	BannerSStyle = lipgloss.NewStyle().
-			Foreground(Orange).
+			Foreground(shared.Orange).
 			Bold(true)
 
 	BannerSubtitle = lipgloss.NewStyle().
-			Foreground(Yellow).
+			Foreground(shared.Yellow).
 			Italic(true)
 
 	AppStyle = lipgloss.NewStyle().
 			Padding(0)
 
 	HeaderStyle = lipgloss.NewStyle().
-			Background(BgDark).
-			Foreground(Cyan).
+			Background(shared.BgDark).
+			Foreground(shared.Cyan).
 			Bold(true).
 			Padding(0, 2).
 			MarginBottom(1)
@@ -30,12 +33,12 @@ var (
 
 	DialogStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(Gray).
+			BorderForeground(shared.Gray).
 			Padding(1, 2).
 			Align(lipgloss.Center)
 
 	ListTitleStyle = lipgloss.NewStyle().
-			Foreground(Cyan).
+			Foreground(shared.Cyan).
 			Bold(true).
 			Padding(0, 0, 1, 0)
 
@@ -43,103 +46,104 @@ var (
 			PaddingLeft(2)
 
 	SelectedItemStyle = lipgloss.NewStyle().
-				Foreground(Orange).
+				Foreground(shared.Orange).
 				Bold(true).
 				PaddingLeft(1)
 
 	InputStyle = lipgloss.NewStyle().
-			Foreground(White).
-			Background(BgLight).
+			Foreground(shared.White).
+			Background(shared.BgLight).
 			Padding(0, 1)
 
 	LabelStyle = lipgloss.NewStyle().
-			Foreground(Cyan).
+			Foreground(shared.Cyan).
 			MarginBottom(1)
 
 	SuccessStyle = lipgloss.NewStyle().
-			Foreground(Green).
+			Foreground(shared.Green).
 			Bold(true)
 
 	ErrorStyle = lipgloss.NewStyle().
-			Foreground(Red).
+			Foreground(shared.Red).
 			Bold(true)
 
 	WarningStyle = lipgloss.NewStyle().
-			Foreground(Yellow).
+			Foreground(shared.Yellow).
 			Bold(true)
 
 	InfoStyle = lipgloss.NewStyle().
-			Foreground(Cyan)
+			Foreground(shared.Cyan)
 
 	ProgressFullStyle = lipgloss.NewStyle().
-				Foreground(Green)
+				Foreground(shared.Green)
 
 	ProgressEmptyStyle = lipgloss.NewStyle().
-				Foreground(Gray)
+				Foreground(shared.Gray)
 
 	TableHeaderStyle = lipgloss.NewStyle().
-				Foreground(Cyan).
+				Foreground(shared.Cyan).
 				Bold(true).
 				BorderStyle(lipgloss.NormalBorder()).
 				BorderBottom(true).
-				BorderForeground(Gray)
+				BorderForeground(shared.Gray)
 
 	TableCellStyle = lipgloss.NewStyle().
 			Padding(0, 1)
 
 	BoxStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(Gray).
+			BorderForeground(shared.Gray).
 			Padding(1, 2).
 			MarginBottom(1)
 
 	HelpStyle = lipgloss.NewStyle().
-			Foreground(Gray).
-			Italic(true)
+			Background(shared.BgLight).
+			Padding(0, 1)
 
 	KeyStyle = lipgloss.NewStyle().
-			Foreground(Yellow).
+			Foreground(shared.Yellow).
 			Bold(true)
 
 	DescStyle = lipgloss.NewStyle().
-			Foreground(Gray)
+			Foreground(shared.Gray)
 
 	SpinnerStyle = lipgloss.NewStyle().
-			Foreground(Cyan)
+			Foreground(shared.Cyan)
 
 	BadgeCompliant = lipgloss.NewStyle().
-			Background(Green).
-			Foreground(White).
+			Background(shared.Green).
+			Foreground(shared.White).
 			Bold(true).
 			Padding(0, 1)
 
 	BadgePartial = lipgloss.NewStyle().
-			Background(Yellow).
-			Foreground(lipgloss.Color("0")).
+			Background(shared.Yellow).
+			Foreground(lipgloss.Color("#000000")).
 			Bold(true).
 			Padding(0, 1)
 
 	BadgeMissing = lipgloss.NewStyle().
-			Background(Red).
-			Foreground(White).
+			Background(shared.Red).
+			Foreground(shared.White).
 			Bold(true).
 			Padding(0, 1)
 
 	BadgeWeekend = lipgloss.NewStyle().
-			Background(lipgloss.Color("33")).
-			Foreground(White).
+			Background(lipgloss.Color("#0087FF")).
+			Foreground(shared.White).
 			Bold(true).
 			Padding(0, 1)
 
 	FrameStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(DarkBlue).
+			BorderForeground(shared.Purple).
+			Background(lipgloss.Color("#0F0F0F")). // Clean dark background like Crush
 			Padding(1)
 
 	ProgressBarStyle = lipgloss.NewStyle().
-				Foreground(Cyan)
+				Foreground(shared.Cyan)
 
 	ProgressTextStyle = lipgloss.NewStyle().
-				Foreground(Yellow).
+				Foreground(shared.Yellow).
 				Italic(true)
 )

@@ -10,13 +10,14 @@ import (
 var errorLogger *log.Logger
 
 const (
-	LogFileName    = "errors.log"
+	LogFileName    = "debug.log"
 	FilePerms      = 0666
 	DateTimeFormat = "2006-01-02 15:04:05"
 )
 
 func init() {
-	file, err := os.OpenFile(LogFileName, os.O_CREATE|os.O_WRONLY|os.O_APPEND, FilePerms)
+	// Clear the log file on startup by truncating it
+	file, err := os.OpenFile(LogFileName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, FilePerms)
 	if err != nil {
 		log.Printf("Failed to open error log file: %v", err)
 		errorLogger = log.New(os.Stderr, "ERROR: ", log.LstdFlags)

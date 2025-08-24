@@ -19,4 +19,3 @@ type WorklogServiceInterface interface {
 	LogMissingDays(ticketKey string, dates []string, comment string) error
 	LogDistribution(distribution map[string][]string, comment string) error
 }
-

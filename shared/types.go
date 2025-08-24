@@ -2,6 +2,22 @@ package shared
 
 import "time"
 
+// Constants for Jira and worklog operations
+const (
+	RequiredHoursPerDay = 8.0
+	MaxResults          = 500
+	HTTPClientError     = 400
+	SecondsPerHour      = 3600
+	ExitCodeError       = 1
+	DayNameLength       = 3
+	FilePermissions     = 0666
+	DateFormat          = "2006-01-02"
+	WorkStartTime       = "T09:00:00.000+0300"
+	WorklogDateFormat   = "2006-01-02T15:04:05.000-0700"
+	ZeroHours           = 0.0
+	ZeroTotal           = 0
+)
+
 type User struct {
 	AccountID string `json:"accountId"`
 }
