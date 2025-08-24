@@ -5,13 +5,13 @@ import (
 )
 
 type KeyMap struct {
-	NewWorklog    key.Binding
-	LogTime       key.Binding
-	Cancel        key.Binding
-	Tab           key.Binding
-	Details       key.Binding
-	Refresh       key.Binding
-	FilterPeriod  key.Binding
+	NewWorklog   key.Binding
+	LogTime      key.Binding
+	Cancel       key.Binding
+	Tab          key.Binding
+	Details      key.Binding
+	Refresh      key.Binding
+	FilterPeriod key.Binding
 }
 
 func DefaultKeyMap() KeyMap {

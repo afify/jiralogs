@@ -36,17 +36,19 @@ type ticketsPage struct {
 
 	// Ticket data
 	ticketLogs   map[string]*shared.TicketWorklog
+	dailyHours   map[string]float64
+	dailyTickets map[string][]string
 	ticketKeys   []string // Ordered list of ticket keys for navigation
 	selectedIdx  int      // Currently selected ticket index
-	
+
 	// Scrolling state
-	viewportStart int // First visible row index
+	viewportStart  int // First visible row index
 	viewportHeight int // Number of visible rows
 }
 
 func New(app *app.App) TicketsPage {
 	shared.LogErrorf("TICKETS_NEW", "Creating new tickets page")
-	
+
 	return &ticketsPage{
 		app:           app,
 		keyMap:        DefaultKeyMap(),
@@ -62,13 +64,13 @@ func (p *ticketsPage) Init() tea.Cmd {
 
 func (p *ticketsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	shared.LogErrorf("TICKETS_UPDATE", "Received message type: %T", msg)
-	
+
 	switch msg := msg.(type) {
 	case welcome.WorklogDataMsg:
 		shared.LogErrorf("TICKETS_UPDATE", "Received WorklogDataMsg with %d tickets", len(msg.TicketLogs))
-		p.SetTicketData(msg.TicketLogs)
+		p.SetTicketData(msg.TicketLogs, msg.DailyHours, msg.DailyTickets)
 		return p, nil
-		
+
 	case tea.WindowSizeMsg:
 		shared.LogErrorf("TICKETS_UPDATE", "Window resize: %dx%d", msg.Width, msg.Height)
 		return p, p.SetSize(msg.Width, msg.Height)
@@ -104,20 +106,30 @@ func (p *ticketsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return p, nil
 		case key.Matches(msg, p.keyMap.LogTime):
 			shared.LogErrorf("TICKETS_UPDATE", "Log time key pressed for ticket: %s", p.getSelectedTicketKey())
-			// TODO: Open log time dialog
-			return p, nil
+			// Navigate to logging page with current data
+			worklogData := welcome.WorklogDataMsg{
+				TicketLogs:   p.ticketLogs,
+				DailyHours:   p.dailyHours,
+				DailyTickets: p.dailyTickets,
+			}
+			return p, func() tea.Msg {
+				return page.PageChangeMsg{
+					ID:   "logging",
+					Data: worklogData,
+				}
+			}
 		case key.Matches(msg, p.keyMap.Quit):
 			shared.LogErrorf("TICKETS_UPDATE", "Quit key pressed")
 			return p, tea.Quit
 		}
 	}
-	
+
 	return p, nil
 }
 
 func (p *ticketsPage) View() string {
 	shared.LogErrorf("TICKETS_VIEW", "Rendering tickets view - dimensions: %dx%d", p.width, p.height)
-	
+
 	if p.width == 0 || p.height == 0 {
 		shared.LogErrorf("TICKETS_VIEW", "Dimensions not set, returning empty view")
 		return ""
@@ -135,8 +147,8 @@ func (p *ticketsPage) View() string {
 		VersionColor: t.Primary,
 		Width:        p.width - 4,
 	}
-	
-	logoStr := logo.Render("v1.0.0", false, logoOpts) // false for full logo
+
+	logoStr := logo.Render(false, logoOpts) // false for full logo
 	shared.LogErrorf("TICKETS_VIEW", "Full-width logo created")
 
 	// Create tickets table
@@ -194,25 +206,25 @@ func (p *ticketsPage) renderSimpleTable(t *styles.Theme) string {
 	if availableWidth < 70 {
 		availableWidth = 70
 	}
-	
-	keyWidth := 15        // JIRA ticket key (e.g., PT-6165)
-	statusWidth := 12     // Status (e.g., In Progress, Done)
-	hoursWidth := 8       // Logged hours (e.g., 48.0h)
-	priorityWidth := 8    // Priority (e.g., High, Medium)
+
+	keyWidth := 15                                                                           // JIRA ticket key (e.g., PT-6165)
+	statusWidth := 12                                                                        // Status (e.g., In Progress, Done)
+	hoursWidth := 8                                                                          // Logged hours (e.g., 48.0h)
+	priorityWidth := 8                                                                       // Priority (e.g., High, Medium)
 	summaryWidth := availableWidth - keyWidth - statusWidth - hoursWidth - priorityWidth - 8 // spaces between columns
 
 	// Create header
 	header := p.createTableHeader(t, keyWidth, statusWidth, hoursWidth, priorityWidth, summaryWidth)
-	
+
 	// Create rows
 	var tableRows []string
 	tableRows = append(tableRows, header)
-	
+
 	// Add separator
 	separator := strings.Repeat("─", availableWidth-2)
 	styledSeparator := styles.ApplyForegroundGrad(separator, t.Primary, t.Secondary)
 	tableRows = append(tableRows, styledSeparator)
-	
+
 	// Add data rows
 	visibleEnd := p.viewportStart + p.viewportHeight
 	if visibleEnd > len(p.ticketKeys) {
@@ -223,11 +235,11 @@ func (p *ticketsPage) renderSimpleTable(t *styles.Theme) string {
 		ticketKey := p.ticketKeys[i]
 		ticketData := p.ticketLogs[ticketKey]
 		isSelected := i == p.selectedIdx
-		
+
 		row := p.createTableRow(t, ticketKey, ticketData, keyWidth, statusWidth, hoursWidth, priorityWidth, summaryWidth, isSelected)
 		tableRows = append(tableRows, row)
 	}
-	
+
 	// Add footer if needed
 	if len(p.ticketKeys) > p.viewportHeight {
 		tableRows = append(tableRows, "")
@@ -237,7 +249,7 @@ func (p *ticketsPage) renderSimpleTable(t *styles.Theme) string {
 		if actualVisibleEnd > totalItems {
 			actualVisibleEnd = totalItems
 		}
-		
+
 		footerText := fmt.Sprintf("Showing %d-%d of %d tickets", visibleStart, actualVisibleEnd, totalItems)
 		footer := t.S().Base.Foreground(t.FgMuted).Align(lipgloss.Center).Render(footerText)
 		tableRows = append(tableRows, footer)
@@ -250,13 +262,13 @@ func (p *ticketsPage) renderSimpleTable(t *styles.Theme) string {
 func (p *ticketsPage) createTableHeader(t *styles.Theme, keyWidth, statusWidth, hoursWidth, priorityWidth, summaryWidth int) string {
 	// Create a proper JIRA ticket table header with all relevant columns
 	headerStyle := t.S().Base.Foreground(t.Primary).Bold(true)
-	
+
 	keyHeader := headerStyle.Width(keyWidth).Render("TICKET")
 	statusHeader := headerStyle.Width(statusWidth).Render("STATUS")
 	hoursHeader := headerStyle.Width(hoursWidth).Align(lipgloss.Right).Render("LOGGED")
 	priorityHeader := headerStyle.Width(priorityWidth).Render("PRIORITY")
 	summaryHeader := headerStyle.Width(summaryWidth).Render("SUMMARY")
-	
+
 	return fmt.Sprintf("%s  %s  %s  %s  %s", keyHeader, statusHeader, hoursHeader, priorityHeader, summaryHeader)
 }
 
@@ -267,10 +279,10 @@ func (p *ticketsPage) createTableRow(t *styles.Theme, ticketKey string, ticketDa
 	hours := fmt.Sprintf("%.1fh", ticketData.Total)
 	priority := p.getTicketPriority(ticketKey) // Derive priority from ticket key patterns
 	summary := ansi.Truncate(ticketData.Summary, summaryWidth, "…")
-	
+
 	// Apply styling based on selection
 	var keyStyle, statusStyle, hoursStyle, priorityStyle, summaryStyle lipgloss.Style
-	
+
 	if isSelected {
 		// Selected row styling with Crush's secondary color
 		baseStyle := t.S().Base.Background(t.Secondary).Foreground(t.White)
@@ -287,14 +299,14 @@ func (p *ticketsPage) createTableRow(t *styles.Theme, ticketKey string, ticketDa
 		priorityStyle = t.S().Base.Width(priorityWidth).Foreground(p.getPriorityColor(priority, t))
 		summaryStyle = t.S().Base.Width(summaryWidth).Foreground(t.FgBase)
 	}
-	
+
 	// Render cells
 	keyCell := keyStyle.Render(key)
 	statusCell := statusStyle.Render(status)
 	hoursCell := hoursStyle.Render(hours)
 	priorityCell := priorityStyle.Render(priority)
 	summaryCell := summaryStyle.Render(summary)
-	
+
 	return fmt.Sprintf("%s  %s  %s  %s  %s", keyCell, statusCell, hoursCell, priorityCell, summaryCell)
 }
 
@@ -318,7 +330,7 @@ func (p *ticketsPage) getTicketPriority(ticketKey string) string {
 	if len(p.ticketLogs[ticketKey].Logs) > 3 {
 		return "High"
 	} else if len(p.ticketLogs[ticketKey].Logs) > 1 {
-		return "Medium"  
+		return "Medium"
 	}
 	return "Low"
 }
@@ -351,7 +363,6 @@ func (p *ticketsPage) getPriorityColor(priority string, t *styles.Theme) color.C
 	}
 }
 
-
 func (p *ticketsPage) SetSize(width, height int) tea.Cmd {
 	p.width = width
 	p.height = height
@@ -359,20 +370,23 @@ func (p *ticketsPage) SetSize(width, height int) tea.Cmd {
 	return nil
 }
 
-func (p *ticketsPage) SetTicketData(ticketLogs map[string]*shared.TicketWorklog) {
-	shared.LogErrorf("TICKETS_DATA", "Setting ticket data - TicketLogs: %d", len(ticketLogs))
-	
+func (p *ticketsPage) SetTicketData(ticketLogs map[string]*shared.TicketWorklog, dailyHours map[string]float64, dailyTickets map[string][]string) {
+	shared.LogErrorf("TICKETS_DATA", "Setting ticket data - TicketLogs: %d, DailyHours: %d, DailyTickets: %d",
+		len(ticketLogs), len(dailyHours), len(dailyTickets))
+
 	p.ticketLogs = ticketLogs
-	
+	p.dailyHours = dailyHours
+	p.dailyTickets = dailyTickets
+
 	// Create ordered list of ticket keys for navigation
 	p.ticketKeys = make([]string, 0, len(ticketLogs))
 	for key := range ticketLogs {
 		p.ticketKeys = append(p.ticketKeys, key)
 	}
-	
+
 	// Reset selection to first item
 	p.selectedIdx = 0
-	
+
 	shared.LogErrorf("TICKETS_DATA", "Ticket data set with %d tickets", len(p.ticketKeys))
 }
 
@@ -475,4 +489,3 @@ func (p *ticketsPage) adjustViewport() {
 		p.viewportStart = maxStart
 	}
 }
-

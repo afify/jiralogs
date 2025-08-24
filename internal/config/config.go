@@ -3,9 +3,9 @@ package config
 import (
 	"os"
 	"path/filepath"
-	
-	"github.com/joho/godotenv"
+
 	"LogS/shared"
+	"github.com/joho/godotenv"
 )
 
 const (
@@ -16,7 +16,7 @@ const (
 type Config struct {
 	workingDir string
 	dataDir    string
-	
+
 	// JIRA Configuration
 	JiraBaseURL string
 	JiraEmail   string
@@ -33,10 +33,10 @@ func New() *Config {
 	} else {
 		shared.LogErrorf("CONFIG_INIT", ".env file loaded successfully")
 	}
-	
+
 	homeDir, _ := os.UserHomeDir()
 	workingDir, _ := os.Getwd()
-	
+
 	cfg := &Config{
 		workingDir:  workingDir,
 		dataDir:     filepath.Join(homeDir, defaultDataDirectory),
@@ -44,10 +44,10 @@ func New() *Config {
 		JiraEmail:   os.Getenv("JIRA_EMAIL"),
 		JiraToken:   os.Getenv("JIRA_API_TOKEN"),
 	}
-	
-	shared.LogErrorf("CONFIG_INIT", "Configuration created - JiraBaseURL: %s, JiraEmail: %s, HasToken: %v", 
+
+	shared.LogErrorf("CONFIG_INIT", "Configuration created - JiraBaseURL: %s, JiraEmail: %s, HasToken: %v",
 		cfg.JiraBaseURL, cfg.JiraEmail, cfg.JiraToken != "")
-	
+
 	return cfg
 }
 

@@ -9,12 +9,12 @@ import (
 
 // UI-compatible types for the TUI components
 type Worklog struct {
-	ID              string     `json:"id"`
-	Author          User       `json:"author"`
-	Comment         string     `json:"comment"`
-	Started         *time.Time `json:"started"`
-	TimeSpentHours  float64    `json:"timeSpentHours"`
-	Issue           Issue      `json:"issue"`
+	ID             string     `json:"id"`
+	Author         User       `json:"author"`
+	Comment        string     `json:"comment"`
+	Started        *time.Time `json:"started"`
+	TimeSpentHours float64    `json:"timeSpentHours"`
+	Issue          Issue      `json:"issue"`
 }
 
 type Issue struct {
@@ -23,9 +23,9 @@ type Issue struct {
 }
 
 type Fields struct {
-	Summary  string  `json:"summary"`
-	Status   Status  `json:"status"`
-	Assignee *User   `json:"assignee"`
+	Summary  string `json:"summary"`
+	Status   Status `json:"status"`
+	Assignee *User  `json:"assignee"`
 }
 
 type Status struct {

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"LogS/internal/tui/styles"
+	"LogS/internal/version"
 
 	"github.com/MakeNowJust/heredoc"
 	"github.com/charmbracelet/lipgloss/v2"
@@ -36,7 +37,7 @@ type Opts struct {
 //
 // The compact argument determines whether it renders compact for the sidebar
 // or wider for the main pane.
-func Render(version string, compact bool, o Opts) string {
+func Render(compact bool, o Opts) string {
 	const charm = " SIGSEGV™"
 
 	fg := func(c color.Color, s string) string {
@@ -67,9 +68,9 @@ func Render(version string, compact bool, o Opts) string {
 	// Charm and version.
 	metaRowGap := 1
 	maxVersionWidth := logsWidth - lipgloss.Width(charm) - metaRowGap
-	version = ansi.Truncate(version, maxVersionWidth, "…") // truncate version if too long.
-	gap := max(0, logsWidth-lipgloss.Width(charm)-lipgloss.Width(version))
-	metaRow := fg(o.CharmColor, charm) + strings.Repeat(" ", gap) + fg(o.VersionColor, version)
+	versionText := ansi.Truncate(version.Version, maxVersionWidth, "…") // truncate version if too long.
+	gap := max(0, logsWidth-lipgloss.Width(charm)-lipgloss.Width(versionText))
+	metaRow := fg(o.CharmColor, charm) + strings.Repeat(" ", gap) + fg(o.VersionColor, versionText)
 
 	// Join the meta row and big LOGS title.
 	logs = strings.TrimSpace(metaRow + "\n" + logs)

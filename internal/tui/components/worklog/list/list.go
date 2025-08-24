@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/v2/key"
-	tea "github.com/charmbracelet/bubbletea/v2"
 	"LogS/internal/app"
-	"LogS/jira"
+	"LogS/internal/tui/components/core/layout"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
-	"LogS/internal/tui/components/core/layout"
+	"LogS/jira"
+	"github.com/charmbracelet/bubbles/v2/key"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
 )
 
@@ -43,10 +43,10 @@ type worklogList struct {
 }
 
 type KeyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	Select   key.Binding
-	Refresh  key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	Select  key.Binding
+	Refresh key.Binding
 }
 
 func DefaultKeyMap() KeyMap {
@@ -132,7 +132,7 @@ func (m *worklogList) View() string {
 	s := t.S()
 
 	var content strings.Builder
-	
+
 	// Header
 	header := s.Title.Render("Worklogs")
 	content.WriteString(header)
@@ -151,7 +151,7 @@ func (m *worklogList) View() string {
 
 			var itemStyle lipgloss.Style
 			prefix := "  "
-			
+
 			if i == m.selected {
 				itemStyle = s.TextSelected
 				prefix = "> "

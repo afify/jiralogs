@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
 	"LogS/internal/app"
-	"LogS/jira"
-	"LogS/internal/tui/components/logo"
 	"LogS/internal/tui/components/core/layout"
+	"LogS/internal/tui/components/logo"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
 	"LogS/internal/version"
+	"LogS/jira"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 const LogoHeightBreakpoint = 30
@@ -25,10 +25,10 @@ const (
 )
 
 type WorklogSummary struct {
-	Worklog     jira.Worklog
-	Issue       jira.Issue
-	TimeSpent   float64
-	Date        string
+	Worklog   jira.Worklog
+	Issue     jira.Issue
+	TimeSpent float64
+	Date      string
 }
 
 type WorklogSummaryMsg struct {
@@ -120,21 +120,21 @@ func (m *sidebarCmp) renderCurrentWorklog() string {
 	s := t.S()
 
 	title := s.Title.Render("Current Worklog")
-	
+
 	var content strings.Builder
 	content.WriteString(title)
 	content.WriteString("\n")
-	
+
 	if m.worklog.Issue.Key != "" {
 		content.WriteString(s.Base.Render(fmt.Sprintf("Issue: %s", m.worklog.Issue.Key)))
 		content.WriteString("\n")
 	}
-	
+
 	if m.worklog.TimeSpentHours > 0 {
 		content.WriteString(s.Muted.Render(fmt.Sprintf("Time: %.1fh", m.worklog.TimeSpentHours)))
 		content.WriteString("\n")
 	}
-	
+
 	if m.worklog.Started != nil {
 		content.WriteString(s.Subtle.Render(fmt.Sprintf("Date: %s", m.worklog.Started.Format("2006-01-02"))))
 	}
@@ -147,7 +147,7 @@ func (m *sidebarCmp) renderRecentWorklogs() string {
 	s := t.S()
 
 	title := s.Title.Render("Recent Worklogs")
-	
+
 	var content strings.Builder
 	content.WriteString(title)
 	content.WriteString("\n")
@@ -157,12 +157,12 @@ func (m *sidebarCmp) renderRecentWorklogs() string {
 		if i > 0 {
 			content.WriteString("\n")
 		}
-		
+
 		issueStyle := s.Base
 		if worklog.Worklog.ID == m.worklog.ID {
 			issueStyle = s.TextSelected
 		}
-		
+
 		content.WriteString(issueStyle.Render(fmt.Sprintf("• %s", worklog.Issue.Key)))
 		content.WriteString(" ")
 		content.WriteString(s.Muted.Render(fmt.Sprintf("%.1fh", worklog.TimeSpent)))
@@ -176,15 +176,15 @@ func (m *sidebarCmp) renderProjectInfo() string {
 	s := t.S()
 
 	title := s.Title.Render("JIRA Info")
-	
+
 	var content strings.Builder
 	content.WriteString(title)
 	content.WriteString("\n")
-	
+
 	// Show JIRA connection status
 	content.WriteString(s.Muted.Render("Status: Connected"))
 	content.WriteString("\n")
-	
+
 	// Show total worklogs count
 	if len(m.worklogs) > 0 {
 		content.WriteString(s.Subtle.Render(fmt.Sprintf("Total: %d worklogs", len(m.worklogs))))

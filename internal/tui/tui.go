@@ -10,6 +10,7 @@ import (
 	"LogS/internal/tui/components/dialogs"
 	"LogS/internal/tui/page"
 	"LogS/internal/tui/page/calendar"
+	"LogS/internal/tui/page/logging"
 	"LogS/internal/tui/page/stats"
 	"LogS/internal/tui/page/tickets"
 	"LogS/internal/tui/page/welcome"
@@ -167,10 +168,10 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(cmds...)
 	}
-	
+
 	// Log all other message types for debugging
 	shared.LogErrorf("TUI_UPDATE", "Received message type: %T for page: %s", msg, string(a.currentPage))
-	
+
 	s, _ := a.status.Update(msg)
 	a.status = s.(status.StatusCmp)
 
@@ -251,9 +252,9 @@ func (a *appModel) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 func (a *appModel) moveToPage(msg page.PageChangeMsg) tea.Cmd {
 	var cmds []tea.Cmd
 	pageID := msg.ID
-	
+
 	shared.LogErrorf("TUI_NAVIGATE", "Moving to page: %s, hasData: %v", string(pageID), msg.Data != nil)
-	
+
 	if _, ok := a.loadedPages[pageID]; !ok {
 		cmd := a.pages[pageID].Init()
 		cmds = append(cmds, cmd)
@@ -261,9 +262,9 @@ func (a *appModel) moveToPage(msg page.PageChangeMsg) tea.Cmd {
 	}
 	a.previousPage = a.currentPage
 	a.currentPage = pageID
-	
+
 	// Handle data passing to the new page
-	if msg.Data != nil && (pageID == "stats" || pageID == "tickets" || pageID == "calendar") {
+	if msg.Data != nil && (pageID == "stats" || pageID == "tickets" || pageID == "calendar" || pageID == "logging") {
 		shared.LogErrorf("TUI_NAVIGATE", "Passing data to %s page", string(pageID))
 		if worklogData, ok := msg.Data.(welcome.WorklogDataMsg); ok {
 			shared.LogErrorf("TUI_NAVIGATE", "Found WorklogDataMsg, setting %s data - TicketLogs: %d, DailyHours: %d, DailyTickets: %d",
@@ -274,7 +275,7 @@ func (a *appModel) moveToPage(msg page.PageChangeMsg) tea.Cmd {
 			})
 		}
 	}
-	
+
 	if sizable, ok := a.pages[a.currentPage].(layout.Sizeable); ok {
 		cmd := sizable.SetSize(a.width, a.height)
 		cmds = append(cmds, cmd)
@@ -354,19 +355,22 @@ func New(app *app.App) tea.Model {
 	shared.LogErrorf("TUI_NEW", "Creating new TUI application model")
 	welcomePage := welcome.New(app)
 	shared.LogErrorf("TUI_NEW", "Welcome page created")
-	
+
 	statsPage := stats.New(app)
 	shared.LogErrorf("TUI_NEW", "Stats page created")
-	
+
 	calendarPage := calendar.New(app)
 	shared.LogErrorf("TUI_NEW", "Calendar page created")
-	
+
+	loggingPage := logging.New(app)
+	shared.LogErrorf("TUI_NEW", "Logging page created")
+
 	ticketsPage := tickets.New(app)
 	shared.LogErrorf("TUI_NEW", "Tickets page created")
-	
+
 	worklogPage := worklog.New(app)
 	shared.LogErrorf("TUI_NEW", "Worklog page created")
-	
+
 	keyMap := DefaultKeyMap()
 	keyMap.pageBindings = welcomePage.Bindings()
 	shared.LogErrorf("TUI_NEW", "Key mappings configured")
@@ -382,6 +386,7 @@ func New(app *app.App) tea.Model {
 			welcome.WelcomePageID:   welcomePage,
 			stats.StatsPageID:       statsPage,
 			calendar.CalendarPageID: calendarPage,
+			logging.LoggingPageID:   loggingPage,
 			tickets.TicketsPageID:   ticketsPage,
 			worklog.WorklogPageID:   worklogPage,
 		},

@@ -5,15 +5,15 @@ import (
 )
 
 type KeyMap struct {
-	Up         key.Binding
-	Down       key.Binding
-	Left       key.Binding
-	Right      key.Binding
-	PrevYear   key.Binding
-	NextYear   key.Binding
-	Today      key.Binding
-	Back       key.Binding
-	Quit       key.Binding
+	Up       key.Binding
+	Down     key.Binding
+	Left     key.Binding
+	Right    key.Binding
+	PrevYear key.Binding
+	NextYear key.Binding
+	Today    key.Binding
+	Back     key.Binding
+	Quit     key.Binding
 }
 
 func DefaultKeyMap() KeyMap {

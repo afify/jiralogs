@@ -59,10 +59,10 @@ type welcomePage struct {
 	state         welcomeState
 	statusText    string
 	autoFetch     bool
-	
-	// Spinner for loading animation  
+
+	// Spinner for loading animation
 	spinner spinner.Model
-	
+
 	// Worklog data to pass to stats page
 	ticketLogs   map[string]*shared.TicketWorklog
 	dailyHours   map[string]float64
@@ -73,12 +73,12 @@ func New(app *app.App) WelcomePage {
 	shared.LogErrorf("WELCOME_NEW", "Creating new welcome page")
 	isConfigured := app.Config().IsConfigured()
 	shared.LogErrorf("WELCOME_NEW", "JIRA configuration status: %v", isConfigured)
-	
+
 	// Create spinner with Crush's style
 	spinnerModel := spinner.New()
 	spinnerModel.Spinner = spinner.Dot
 	shared.LogErrorf("WELCOME_NEW", "Spinner created with Crush styling")
-	
+
 	page := &welcomePage{
 		app:       app,
 		keyMap:    DefaultKeyMap(),
@@ -86,7 +86,7 @@ func New(app *app.App) WelcomePage {
 		autoFetch: true, // Always auto-fetch
 		spinner:   spinnerModel,
 	}
-	
+
 	shared.LogErrorf("WELCOME_NEW", "Welcome page created with state: %d, autoFetch: %v", page.state, page.autoFetch)
 	return page
 }
@@ -94,7 +94,7 @@ func New(app *app.App) WelcomePage {
 func (p *welcomePage) Init() tea.Cmd {
 	shared.LogErrorf("WELCOME_INIT", "Initializing welcome page with state: %d", p.state)
 	shared.LogErrorf("WELCOME_INIT", "AutoFetch enabled: %v", p.autoFetch)
-	
+
 	if p.autoFetch {
 		shared.LogErrorf("WELCOME_INIT", "Scheduling immediate worklog fetch")
 		// Start fetching worklogs immediately
@@ -103,19 +103,19 @@ func (p *welcomePage) Init() tea.Cmd {
 			return WorklogFetchStartedMsg{}
 		}
 	}
-	
+
 	shared.LogErrorf("WELCOME_INIT", "AutoFetch disabled, no fetch scheduled")
 	return nil
 }
 
 func (p *welcomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	shared.LogErrorf("WELCOME_UPDATE", "Received message type: %T", msg)
-	
+
 	// Update spinner animation when fetching
 	if p.state == stateFetchingWorklogs {
 		var cmd tea.Cmd
 		p.spinner, cmd = p.spinner.Update(msg)
-		
+
 		// Handle spinner-specific messages
 		switch msg := msg.(type) {
 		case tea.WindowSizeMsg:
@@ -126,7 +126,7 @@ func (p *welcomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return p, cmd
 		}
 	}
-	
+
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		shared.LogErrorf("WELCOME_UPDATE", "Window resize: %dx%d", msg.Width, msg.Height)
@@ -139,7 +139,7 @@ func (p *welcomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.statusText = "Fetching worklogs from JIRA..."
 		shared.LogErrorf("WELCOME_FETCH", "State changed to fetching, status: %s", p.statusText)
 		shared.LogErrorf("WELCOME_FETCH", "Starting spinner animation")
-		// Start spinner and fetch worklogs  
+		// Start spinner and fetch worklogs
 		return p, tea.Batch(p.spinner.Tick, p.fetchWorklogs())
 
 	case WorklogFetchCompletedMsg:
@@ -149,14 +149,14 @@ func (p *welcomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			shared.LogErrorf("WELCOME_FETCH", "Fetch successful - changing state from %d to %d", p.state, stateComplete)
 			p.state = stateComplete
 			p.statusText = "Worklogs fetched successfully!"
-			
+
 			// Store the worklog data
 			p.ticketLogs = msg.TicketLogs
 			p.dailyHours = msg.DailyHours
 			p.dailyTickets = msg.DailyTickets
 			shared.LogErrorf("WELCOME_FETCH", "Stored worklog data - TicketLogs: %d, DailyHours: %d, DailyTickets: %d",
 				len(p.ticketLogs), len(p.dailyHours), len(p.dailyTickets))
-			
+
 			shared.LogErrorf("WELCOME_FETCH", "Navigating to stats page with worklog data")
 			// Navigate to stats page with data
 			return p, func() tea.Msg {
@@ -203,7 +203,7 @@ func (p *welcomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (p *welcomePage) View() string {
 	shared.LogErrorf("WELCOME_VIEW", "Rendering view - dimensions: %dx%d, state: %d", p.width, p.height, p.state)
-	
+
 	if p.width == 0 || p.height == 0 {
 		shared.LogErrorf("WELCOME_VIEW", "Dimensions not set, returning empty view")
 		return ""
@@ -222,7 +222,7 @@ func (p *welcomePage) View() string {
 		Width:        p.width - 4, // Leave some padding
 	}
 
-	logoStr := logo.Render("v1.0.0", false, logoOpts)
+	logoStr := logo.Render(false, logoOpts)
 
 	// Create centered content
 	centeredLogo := t.S().Base.
@@ -281,10 +281,10 @@ func (p *welcomePage) fetchWorklogs() tea.Cmd {
 	shared.LogErrorf("WELCOME_FETCH", "Creating fetchWorklogs command")
 	return func() tea.Msg {
 		shared.LogErrorf("WELCOME_FETCH", "Executing fetchWorklogs command")
-		
+
 		worklogService := p.app.WorklogService()
 		shared.LogErrorf("WELCOME_FETCH", "Retrieved worklog service: %v", worklogService != nil)
-		
+
 		if worklogService == nil {
 			shared.LogErrorf("WELCOME_FETCH", "No worklog service available - likely JIRA not configured")
 			return WorklogFetchCompletedMsg{Success: false, Error: nil}
@@ -293,18 +293,18 @@ func (p *welcomePage) fetchWorklogs() tea.Cmd {
 		// Create a period for year-to-date (beginning of year to today)
 		now := time.Now()
 		shared.LogErrorf("WELCOME_FETCH", "Current time: %s", now.Format("2006-01-02 15:04:05"))
-		
+
 		period := shared.Period{
 			Start: time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location()),
 			End:   now,
 		}
 
-		shared.LogErrorf("WELCOME_FETCH", "Created period - Start: %s, End: %s", 
+		shared.LogErrorf("WELCOME_FETCH", "Created period - Start: %s, End: %s",
 			period.Start.Format("2006-01-02"), period.End.Format("2006-01-02"))
 
 		shared.LogErrorf("WELCOME_FETCH", "Calling worklogService.FetchWorklogs")
 		ticketLogs, dailyHours, dailyTickets, err := worklogService.FetchWorklogs(period)
-		
+
 		if err != nil {
 			shared.LogError("WELCOME_FETCH", err)
 			shared.LogErrorf("WELCOME_FETCH", "FetchWorklogs failed with error: %s", err.Error())
@@ -312,11 +312,11 @@ func (p *welcomePage) fetchWorklogs() tea.Cmd {
 		}
 
 		shared.LogErrorf("WELCOME_FETCH", "FetchWorklogs succeeded")
-		shared.LogErrorf("WELCOME_FETCH", "Results - TicketLogs: %d, DailyHours entries: %d, DailyTickets entries: %d", 
+		shared.LogErrorf("WELCOME_FETCH", "Results - TicketLogs: %d, DailyHours entries: %d, DailyTickets entries: %d",
 			len(ticketLogs), len(dailyHours), len(dailyTickets))
-		
+
 		return WorklogFetchCompletedMsg{
-			Success:      true, 
+			Success:      true,
 			Error:        nil,
 			TicketLogs:   ticketLogs,
 			DailyHours:   dailyHours,

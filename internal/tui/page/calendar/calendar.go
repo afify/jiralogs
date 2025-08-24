@@ -32,11 +32,11 @@ type CalendarPage interface {
 type DayStatus int
 
 const (
-	DayFuture DayStatus = iota // Upcoming days (dimmed)
-	DayNoLog                   // Days not logged (different background)
-	DayLogged                  // Days with logged hours
-	DayToday                   // Today
-	DayWeekend                 // Weekend days
+	DayFuture  DayStatus = iota // Upcoming days (dimmed)
+	DayNoLog                    // Days not logged (different background)
+	DayLogged                   // Days with logged hours
+	DayToday                    // Today
+	DayWeekend                  // Weekend days
 )
 
 type calendarPage struct {
@@ -45,7 +45,7 @@ type calendarPage struct {
 	keyMap        KeyMap
 
 	// Calendar state
-	currentYear int
+	currentYear   int
 	selectedMonth int
 	selectedDay   int
 	today         time.Time
@@ -56,7 +56,7 @@ type calendarPage struct {
 
 func New(app *app.App) CalendarPage {
 	shared.LogErrorf("CALENDAR_NEW", "Creating new calendar page")
-	
+
 	now := time.Now()
 	return &calendarPage{
 		app:           app,
@@ -76,13 +76,13 @@ func (p *calendarPage) Init() tea.Cmd {
 
 func (p *calendarPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	shared.LogErrorf("CALENDAR_UPDATE", "Received message type: %T", msg)
-	
+
 	switch msg := msg.(type) {
 	case welcome.WorklogDataMsg:
 		shared.LogErrorf("CALENDAR_UPDATE", "Received WorklogDataMsg")
 		p.SetWorklogData(msg.DailyHours)
 		return p, nil
-		
+
 	case tea.WindowSizeMsg:
 		shared.LogErrorf("CALENDAR_UPDATE", "Window resize: %dx%d", msg.Width, msg.Height)
 		return p, p.SetSize(msg.Width, msg.Height)
@@ -140,13 +140,13 @@ func (p *calendarPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return p, tea.Quit
 		}
 	}
-	
+
 	return p, nil
 }
 
 func (p *calendarPage) View() string {
 	shared.LogErrorf("CALENDAR_VIEW", "Rendering calendar view - dimensions: %dx%d", p.width, p.height)
-	
+
 	if p.width == 0 || p.height == 0 {
 		shared.LogErrorf("CALENDAR_VIEW", "Dimensions not set, returning empty view")
 		return ""
@@ -164,8 +164,8 @@ func (p *calendarPage) View() string {
 		VersionColor: t.Primary,
 		Width:        p.width - 6,
 	}
-	
-	logoStr := logo.Render("v1.0.0", false, logoOpts) // false for full logo
+
+	logoStr := logo.Render(false, logoOpts) // false for full logo
 	shared.LogErrorf("CALENDAR_VIEW", "Full-width logo created")
 
 	// Create calendar year view
@@ -192,13 +192,13 @@ func (p *calendarPage) View() string {
 func (p *calendarPage) renderYearView(t *styles.Theme) string {
 	// Create year header
 	yearHeader := p.renderYearHeader(t)
-	
+
 	// Create months grid (4 rows x 3 columns)
 	monthsGrid := p.renderMonthsGrid(t)
-	
+
 	// Legend for day status colors
 	legend := p.renderLegend(t)
-	
+
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		yearHeader,
@@ -211,19 +211,19 @@ func (p *calendarPage) renderYearView(t *styles.Theme) string {
 
 func (p *calendarPage) renderYearHeader(t *styles.Theme) string {
 	yearStr := strconv.Itoa(p.currentYear)
-	
+
 	// Create styled year with navigation arrows
 	leftArrow := t.S().Base.Foreground(t.FgMuted).Render("◀")
 	rightArrow := t.S().Base.Foreground(t.FgMuted).Render("▶")
 	year := t.S().Base.Foreground(t.Primary).Bold(true).Render(yearStr)
-	
+
 	header := fmt.Sprintf("  %s    %s    %s", leftArrow, year, rightArrow)
-	
+
 	// Center the header
 	headerStyle := t.S().Base.
 		Align(lipgloss.Center).
 		Width(p.width - 8)
-	
+
 	return headerStyle.Render(header)
 }
 
@@ -232,13 +232,13 @@ func (p *calendarPage) renderMonthsGrid(t *styles.Theme) string {
 	if monthWidth < 20 {
 		monthWidth = 20
 	}
-	
+
 	var rows []string
-	
+
 	// Render 4 rows of 3 months each
 	for row := 0; row < 4; row++ {
 		var monthsInRow []string
-		
+
 		for col := 0; col < 3; col++ {
 			monthNum := row*3 + col + 1
 			if monthNum <= 12 {
@@ -246,34 +246,34 @@ func (p *calendarPage) renderMonthsGrid(t *styles.Theme) string {
 				monthsInRow = append(monthsInRow, month)
 			}
 		}
-		
+
 		if len(monthsInRow) > 0 {
 			rowStr := lipgloss.JoinHorizontal(lipgloss.Top, monthsInRow...)
 			rows = append(rows, rowStr)
 		}
 	}
-	
+
 	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }
 
 func (p *calendarPage) renderMonth(t *styles.Theme, month int, width int) string {
 	monthName := time.Month(month).String()
-	
+
 	// Month header
 	headerStyle := t.S().Base.
 		Foreground(t.Primary).
 		Bold(true).
 		Align(lipgloss.Center).
 		Width(width)
-	
+
 	header := headerStyle.Render(monthName)
-	
+
 	// Days of week header
 	daysHeader := p.renderDaysOfWeekHeader(t, width)
-	
+
 	// Calendar days
 	monthDays := p.renderMonthDays(t, p.currentYear, month, width)
-	
+
 	// Month container with border
 	monthStyle := t.S().Base.
 		Border(lipgloss.RoundedBorder()).
@@ -281,25 +281,25 @@ func (p *calendarPage) renderMonth(t *styles.Theme, month int, width int) string
 		Width(width).
 		Padding(0, 1).
 		Margin(0, 1)
-	
+
 	monthContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		header,
 		daysHeader,
 		monthDays,
 	)
-	
+
 	return monthStyle.Render(monthContent)
 }
 
 func (p *calendarPage) renderDaysOfWeekHeader(t *styles.Theme, width int) string {
 	days := []string{"Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"}
-	
+
 	dayWidth := (width - 8) / 7 // 7 days with some padding
 	if dayWidth < 2 {
 		dayWidth = 2
 	}
-	
+
 	var styledDays []string
 	for _, day := range days {
 		dayStyle := t.S().Base.
@@ -308,39 +308,39 @@ func (p *calendarPage) renderDaysOfWeekHeader(t *styles.Theme, width int) string
 			Align(lipgloss.Center)
 		styledDays = append(styledDays, dayStyle.Render(day))
 	}
-	
+
 	return lipgloss.JoinHorizontal(lipgloss.Top, styledDays...)
 }
 
 func (p *calendarPage) renderMonthDays(t *styles.Theme, year, month int, width int) string {
 	firstDay := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.Local)
 	lastDay := firstDay.AddDate(0, 1, -1)
-	
+
 	dayWidth := (width - 8) / 7
 	if dayWidth < 2 {
 		dayWidth = 2
 	}
-	
+
 	var weeks []string
 	var currentWeek []string
-	
+
 	// Add empty cells for days before the first day of the month
 	for i := 0; i < int(firstDay.Weekday()); i++ {
 		emptyStyle := t.S().Base.Width(dayWidth).Align(lipgloss.Center)
 		currentWeek = append(currentWeek, emptyStyle.Render(""))
 	}
-	
+
 	// Add days of the month
 	for day := 1; day <= lastDay.Day(); day++ {
 		dayDate := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
 		dayStatus := p.getDayStatus(dayDate)
-		
+
 		dayStr := strconv.Itoa(day)
 		dayStyle := p.getDayStyle(t, dayStatus, dayWidth)
-		
+
 		styledDay := dayStyle.Render(dayStr)
 		currentWeek = append(currentWeek, styledDay)
-		
+
 		// If we have 7 days or it's the last day, complete the week
 		if len(currentWeek) == 7 {
 			weekStr := lipgloss.JoinHorizontal(lipgloss.Top, currentWeek...)
@@ -348,51 +348,51 @@ func (p *calendarPage) renderMonthDays(t *styles.Theme, year, month int, width i
 			currentWeek = []string{}
 		}
 	}
-	
+
 	// Fill remaining days of the last week
 	for len(currentWeek) < 7 && len(currentWeek) > 0 {
 		emptyStyle := t.S().Base.Width(dayWidth).Align(lipgloss.Center)
 		currentWeek = append(currentWeek, emptyStyle.Render(""))
 	}
-	
+
 	if len(currentWeek) > 0 {
 		weekStr := lipgloss.JoinHorizontal(lipgloss.Top, currentWeek...)
 		weeks = append(weeks, weekStr)
 	}
-	
+
 	return lipgloss.JoinVertical(lipgloss.Left, weeks...)
 }
 
 func (p *calendarPage) getDayStatus(date time.Time) DayStatus {
 	dateStr := date.Format("2006-01-02")
-	
+
 	// Check if it's today
 	if p.today.Format("2006-01-02") == dateStr {
 		return DayToday
 	}
-	
+
 	// Check if it's in the future
 	if date.After(p.today) {
 		return DayFuture
 	}
-	
+
 	// Check if it's a weekend (Friday/Saturday for Middle East)
 	if date.Weekday() == time.Friday || date.Weekday() == time.Saturday {
 		return DayWeekend
 	}
-	
+
 	// Check if there are logged hours
 	if hours, exists := p.dailyHours[dateStr]; exists && hours > 0 {
 		return DayLogged
 	}
-	
+
 	// No logged hours on a workday
 	return DayNoLog
 }
 
 func (p *calendarPage) getDayStyle(t *styles.Theme, status DayStatus, width int) lipgloss.Style {
 	baseStyle := t.S().Base.Width(width).Align(lipgloss.Center)
-	
+
 	switch status {
 	case DayToday:
 		return baseStyle.Background(t.Primary).Foreground(t.White).Bold(true)
@@ -421,24 +421,24 @@ func (p *calendarPage) renderLegend(t *styles.Theme) string {
 		{"Weekend", t.FgMuted, t.BgSubtle},
 		{"Future", t.FgMuted, nil},
 	}
-	
+
 	var items []string
 	for _, item := range legendItems {
 		style := t.S().Base.Foreground(item.color).Padding(0, 1)
 		if item.bg != nil {
 			style = style.Background(item.bg)
 		}
-		
+
 		legendItem := style.Render("██") + " " + t.S().Base.Foreground(t.FgBase).Render(item.label)
 		items = append(items, legendItem)
 	}
-	
+
 	legend := lipgloss.JoinHorizontal(lipgloss.Top, items...)
-	
+
 	legendStyle := t.S().Base.
 		Align(lipgloss.Center).
 		Width(p.width - 8)
-	
+
 	return legendStyle.Render(legend)
 }
 

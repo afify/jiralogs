@@ -3,11 +3,11 @@ package filter
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
 	"LogS/internal/app"
+	"LogS/internal/tui/components/core/layout"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
-	"LogS/internal/tui/components/core/layout"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
 )
 
@@ -28,11 +28,11 @@ type Filter interface {
 }
 
 type filter struct {
-	width, height int
-	app           *app.App
-	filterText    string
-	period        string
-	periods       []string
+	width, height  int
+	app            *app.App
+	filterText     string
+	period         string
+	periods        []string
 	selectedPeriod int
 }
 
@@ -41,7 +41,7 @@ func New(app *app.App) Filter {
 		app: app,
 		periods: []string{
 			"Week to date",
-			"Month to date", 
+			"Month to date",
 			"Last 30 days",
 			"Last 3 months",
 			"Year to date",
@@ -78,7 +78,7 @@ func (m *filter) View() string {
 	s := t.S()
 
 	var content strings.Builder
-	
+
 	// Title
 	title := s.Title.Render("Filter & Period")
 	content.WriteString(title)
@@ -95,16 +95,16 @@ func (m *filter) View() string {
 	// Period selection
 	content.WriteString(s.Subtitle.Render("Time Period:"))
 	content.WriteString("\n")
-	
+
 	for i, period := range m.periods {
 		prefix := "  "
 		style := s.Muted
-		
+
 		if i == m.selectedPeriod {
 			prefix = "> "
 			style = s.TextSelected
 		}
-		
+
 		line := prefix + period
 		content.WriteString(style.Render(line))
 		content.WriteString("\n")

@@ -4,23 +4,23 @@ import (
 	"context"
 	"sync"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
 	"LogS/internal/config"
 	"LogS/jira"
 	"LogS/shared"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 type App struct {
 	config *config.Config
-	
+
 	// JIRA services
-	jiraClient      *jira.JiraClient
-	worklogService  *jira.WorklogService
-	
+	jiraClient     *jira.JiraClient
+	worklogService *jira.WorklogService
+
 	// Application context
 	globalCtx context.Context
 	events    chan tea.Msg
-	
+
 	// For cleanup
 	cleanupFuncs []func()
 	mutex        sync.RWMutex
@@ -34,7 +34,7 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 		events:       make(chan tea.Msg, 100),
 		cleanupFuncs: []func(){},
 	}
-	
+
 	// Initialize JIRA services if configured
 	if cfg.IsConfigured() {
 		shared.LogErrorf("APP_INIT", "Initializing JIRA client")
@@ -44,14 +44,14 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 			shared.LogError("APP_INIT", err)
 			return nil, err
 		}
-		
+
 		app.jiraClient = jiraClient
 		app.worklogService = worklogService
 		shared.LogErrorf("APP_INIT", "JIRA services initialized successfully")
 	} else {
 		shared.LogErrorf("APP_INIT", "JIRA not configured, skipping service initialization")
 	}
-	
+
 	return app, nil
 }
 
@@ -102,14 +102,14 @@ func (app *App) SendEvent(msg tea.Msg) {
 func (app *App) Shutdown() {
 	app.mutex.Lock()
 	defer app.mutex.Unlock()
-	
+
 	// Call cleanup functions
 	for _, cleanup := range app.cleanupFuncs {
 		if cleanup != nil {
 			cleanup()
 		}
 	}
-	
+
 	// Close events channel
 	close(app.events)
 }

@@ -7,11 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
 	"LogS/internal/app"
 	"LogS/internal/config"
 	"LogS/internal/tui"
 	"LogS/shared"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 func main() {

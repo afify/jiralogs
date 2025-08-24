@@ -28,7 +28,7 @@ func (s *Slice[T]) Seq() func(func(T) bool) {
 	items := make([]T, len(s.items))
 	copy(items, s.items)
 	s.mu.RUnlock()
-	
+
 	return func(yield func(T) bool) {
 		for _, item := range items {
 			if !yield(item) {

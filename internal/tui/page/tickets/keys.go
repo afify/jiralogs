@@ -5,13 +5,13 @@ import (
 )
 
 type KeyMap struct {
-	Up         key.Binding
-	Down       key.Binding
-	Select     key.Binding
-	Back       key.Binding
-	Refresh    key.Binding
-	LogTime    key.Binding
-	Quit       key.Binding
+	Up      key.Binding
+	Down    key.Binding
+	Select  key.Binding
+	Back    key.Binding
+	Refresh key.Binding
+	LogTime key.Binding
+	Quit    key.Binding
 }
 
 func DefaultKeyMap() KeyMap {

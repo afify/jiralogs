@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
 	"LogS/internal/app"
-	"LogS/jira"
+	"LogS/internal/tui/components/core/layout"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
-	"LogS/internal/tui/components/core/layout"
+	"LogS/jira"
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"github.com/charmbracelet/lipgloss/v2"
 )
 

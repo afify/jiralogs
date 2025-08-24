@@ -31,16 +31,16 @@ type statsPage struct {
 	width, height int
 	app           *app.App
 	keyMap        KeyMap
-	
+
 	// User data
 	userEmail string
 	userID    string
-	
+
 	// Period data
 	currentPeriod shared.Period
 	daysLogged    int
 	totalDays     int
-	
+
 	// Stats data
 	ticketLogs   map[string]*shared.TicketWorklog
 	dailyHours   map[string]float64
@@ -51,12 +51,12 @@ type statsPage struct {
 
 func New(app *app.App) StatsPage {
 	shared.LogErrorf("STATS_NEW", "Creating new stats page")
-	
+
 	// Get user data from config and JIRA
 	config := app.Config()
 	userEmail := config.JiraEmail
 	userID := ""
-	
+
 	// Try to get user ID from JIRA
 	if app.JiraClient() != nil {
 		if user, err := app.JiraClient().GetCurrentUser(); err == nil {
@@ -69,7 +69,7 @@ func New(app *app.App) StatsPage {
 	} else {
 		userID = "N/A"
 	}
-	
+
 	// Set default period: beginning of year to today
 	now := time.Now()
 	yearStart := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
@@ -77,10 +77,10 @@ func New(app *app.App) StatsPage {
 		Start: yearStart,
 		End:   now,
 	}
-	
+
 	shared.LogErrorf("STATS_NEW", "User: %s, UserID: %s, Period: %s to %s", userEmail, userID,
 		defaultPeriod.Start.Format("2006-01-02"), defaultPeriod.End.Format("2006-01-02"))
-	
+
 	return &statsPage{
 		app:           app,
 		keyMap:        DefaultKeyMap(),
@@ -97,24 +97,34 @@ func (p *statsPage) Init() tea.Cmd {
 
 func (p *statsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	shared.LogErrorf("STATS_UPDATE", "Received message type: %T", msg)
-	
+
 	switch msg := msg.(type) {
 	case welcome.WorklogDataMsg:
 		shared.LogErrorf("STATS_UPDATE", "Received WorklogDataMsg")
 		p.SetWorklogData(msg.TicketLogs, msg.DailyHours, msg.DailyTickets)
 		return p, nil
-		
+
 	case tea.WindowSizeMsg:
 		shared.LogErrorf("STATS_UPDATE", "Window resize: %dx%d", msg.Width, msg.Height)
 		return p, p.SetSize(msg.Width, msg.Height)
-	
+
 	case tea.KeyPressMsg:
 		shared.LogErrorf("STATS_UPDATE", "Key press: %s", msg.String())
 		switch {
 		case key.Matches(msg, p.keyMap.LogTime):
 			shared.LogErrorf("STATS_UPDATE", "Log time key pressed")
-			// TODO: Open log time dialog
-			return p, nil
+			// Navigate to logging page with current data
+			worklogData := welcome.WorklogDataMsg{
+				TicketLogs:   p.ticketLogs,
+				DailyHours:   p.dailyHours,
+				DailyTickets: p.dailyTickets,
+			}
+			return p, func() tea.Msg {
+				return page.PageChangeMsg{
+					ID:   "logging",
+					Data: worklogData,
+				}
+			}
 		case key.Matches(msg, p.keyMap.Refresh):
 			shared.LogErrorf("STATS_UPDATE", "Refresh key pressed")
 			// TODO: Refresh worklog data
@@ -152,14 +162,14 @@ func (p *statsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return p, tea.Quit
 		}
 	}
-	
+
 	shared.LogErrorf("STATS_UPDATE", "No handler for message type %T", msg)
 	return p, nil
 }
 
 func (p *statsPage) View() string {
 	shared.LogErrorf("STATS_VIEW", "Rendering stats view - dimensions: %dx%d", p.width, p.height)
-	
+
 	if p.width == 0 || p.height == 0 {
 		shared.LogErrorf("STATS_VIEW", "Dimensions not set, returning empty view")
 		return ""
@@ -177,8 +187,8 @@ func (p *statsPage) View() string {
 		VersionColor: t.Primary,
 		Width:        p.width - 4,
 	}
-	
-	logoStr := logo.Render("v1.0.0", false, logoOpts) // false for full logo
+
+	logoStr := logo.Render(false, logoOpts) // false for full logo
 	shared.LogErrorf("STATS_VIEW", "Full-width logo created")
 
 	// Create stats content
@@ -214,8 +224,8 @@ func (p *statsPage) renderStats(t *styles.Theme) string {
 			lipgloss.Left,
 			t.S().Base.Foreground(t.Primary).Bold(true).Render("User Information"),
 			"",
-			t.S().Base.Foreground(t.FgMuted).Render("Email: ") + t.S().Base.Foreground(t.FgBase).Render(p.userEmail),
-			t.S().Base.Foreground(t.FgMuted).Render("User ID: ") + t.S().Base.Foreground(t.FgBase).Render(p.userID),
+			t.S().Base.Foreground(t.FgMuted).Render("Email: ")+t.S().Base.Foreground(t.FgBase).Render(p.userEmail),
+			t.S().Base.Foreground(t.FgMuted).Render("User ID: ")+t.S().Base.Foreground(t.FgBase).Render(p.userID),
 		),
 	)
 
@@ -234,19 +244,19 @@ func (p *statsPage) renderStats(t *styles.Theme) string {
 	}
 	progressBarWidth := 30
 	filledWidth := int(float64(progressBarWidth) * daysProgressPercentage / 100)
-	
+
 	// Create the filled and empty parts separately
 	filledPart := ""
 	emptyPart := ""
-	
+
 	for i := 0; i < filledWidth && i < progressBarWidth; i++ {
 		filledPart += "█"
 	}
-	
+
 	for i := filledWidth; i < progressBarWidth; i++ {
 		emptyPart += "░"
 	}
-	
+
 	// Apply Crush's gradient styling to the filled portion and muted color to empty portion
 	var styledProgressBar string
 	if len(filledPart) > 0 {
@@ -264,12 +274,12 @@ func (p *statsPage) renderStats(t *styles.Theme) string {
 			lipgloss.Left,
 			t.S().Base.Foreground(t.Primary).Bold(true).Render("Period Information"),
 			"",
-			t.S().Base.Foreground(t.FgMuted).Render("From: ") + t.S().Base.Foreground(t.FgBase).Render(p.currentPeriod.Start.Format("2006-01-02")),
-			t.S().Base.Foreground(t.FgMuted).Render("To: ") + t.S().Base.Foreground(t.FgBase).Render(p.currentPeriod.End.Format("2006-01-02")),
+			t.S().Base.Foreground(t.FgMuted).Render("From: ")+t.S().Base.Foreground(t.FgBase).Render(p.currentPeriod.Start.Format("2006-01-02")),
+			t.S().Base.Foreground(t.FgMuted).Render("To: ")+t.S().Base.Foreground(t.FgBase).Render(p.currentPeriod.End.Format("2006-01-02")),
 			"",
 			t.S().Base.Foreground(t.FgMuted).Render("Days Progress:"),
 			styledProgressBar,
-			t.S().Base.Foreground(t.FgBase).Render(fmt.Sprintf("%d/%d days", p.daysLogged, p.totalDays)) + 
+			t.S().Base.Foreground(t.FgBase).Render(fmt.Sprintf("%d/%d days", p.daysLogged, p.totalDays))+
 				t.S().Base.Foreground(t.FgMuted).Render(fmt.Sprintf(" (%.0f%%)", daysProgressPercentage)),
 		),
 	)
@@ -285,10 +295,10 @@ func (p *statsPage) renderStats(t *styles.Theme) string {
 			lipgloss.Left,
 			t.S().Base.Foreground(t.Primary).Bold(true).Render("Overall Progress"),
 			"",
-			t.S().Base.Foreground(t.FgMuted).Render("Total Hours: ") + t.S().Base.Foreground(t.FgBase).Render(fmt.Sprintf("%.1f", p.totalHours)),
-			t.S().Base.Foreground(t.FgMuted).Render("Total Tickets: ") + t.S().Base.Foreground(t.FgBase).Render(fmt.Sprintf("%d", p.totalTickets)),
+			t.S().Base.Foreground(t.FgMuted).Render("Total Hours: ")+t.S().Base.Foreground(t.FgBase).Render(fmt.Sprintf("%.1f", p.totalHours)),
+			t.S().Base.Foreground(t.FgMuted).Render("Total Tickets: ")+t.S().Base.Foreground(t.FgBase).Render(fmt.Sprintf("%d", p.totalTickets)),
 			"",
-			t.S().Base.Foreground(t.FgMuted).Render("Completion: ") + t.S().Base.Foreground(t.Primary).Bold(true).Render(fmt.Sprintf("%.0f%%", daysProgressPercentage)),
+			t.S().Base.Foreground(t.FgMuted).Render("Completion: ")+t.S().Base.Foreground(t.Primary).Bold(true).Render(fmt.Sprintf("%.0f%%", daysProgressPercentage)),
 		),
 	)
 
@@ -311,24 +321,24 @@ func (p *statsPage) SetSize(width, height int) tea.Cmd {
 }
 
 func (p *statsPage) SetWorklogData(ticketLogs map[string]*shared.TicketWorklog, dailyHours map[string]float64, dailyTickets map[string][]string) {
-	shared.LogErrorf("STATS_DATA", "Setting worklog data - TicketLogs: %d, DailyHours: %d, DailyTickets: %d", 
+	shared.LogErrorf("STATS_DATA", "Setting worklog data - TicketLogs: %d, DailyHours: %d, DailyTickets: %d",
 		len(ticketLogs), len(dailyHours), len(dailyTickets))
-	
+
 	p.ticketLogs = ticketLogs
 	p.dailyHours = dailyHours
 	p.dailyTickets = dailyTickets
-	
+
 	// Calculate totals
 	p.totalHours = 0
 	for _, hours := range dailyHours {
 		p.totalHours += hours
 	}
-	
+
 	p.totalTickets = len(ticketLogs)
-	
+
 	// Calculate days logged and total days
 	p.daysLogged = len(dailyHours) // Days with logged hours
-	
+
 	// Calculate total working days (excluding weekends - Friday/Saturday for Middle East)
 	totalDays := 0
 	current := p.currentPeriod.Start
@@ -340,8 +350,8 @@ func (p *statsPage) SetWorklogData(ticketLogs map[string]*shared.TicketWorklog, 
 		current = current.AddDate(0, 0, 1)
 	}
 	p.totalDays = totalDays
-	
-	shared.LogErrorf("STATS_DATA", "Calculated totals - Hours: %.1f, Tickets: %d, DaysLogged: %d, TotalDays: %d", 
+
+	shared.LogErrorf("STATS_DATA", "Calculated totals - Hours: %.1f, Tickets: %d, DaysLogged: %d, TotalDays: %d",
 		p.totalHours, p.totalTickets, p.daysLogged, p.totalDays)
 }
 
