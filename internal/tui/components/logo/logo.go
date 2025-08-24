@@ -37,7 +37,7 @@ type Opts struct {
 // The compact argument determines whether it renders compact for the sidebar
 // or wider for the main pane.
 func Render(version string, compact bool, o Opts) string {
-	const charm = " Charm™"
+	const charm = " SIGSEGV™"
 
 	fg := func(c color.Color, s string) string {
 		return lipgloss.NewStyle().Foreground(c).Render(s)

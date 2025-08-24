@@ -1,37 +1,26 @@
 package tui
 
 import (
-	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"LogS/internal/app"
-	"LogS/internal/config"
-	"LogS/internal/llm/agent"
-	"LogS/internal/permission"
-	"LogS/internal/pubsub"
-	cmpChat "LogS/internal/tui/components/chat"
-	"LogS/internal/tui/components/chat/splash"
-	"LogS/internal/tui/components/completions"
 	"LogS/internal/tui/components/core"
 	"LogS/internal/tui/components/core/layout"
 	"LogS/internal/tui/components/core/status"
 	"LogS/internal/tui/components/dialogs"
-	"LogS/internal/tui/components/dialogs/commands"
-	"LogS/internal/tui/components/dialogs/compact"
-	"LogS/internal/tui/components/dialogs/filepicker"
-	"LogS/internal/tui/components/dialogs/models"
-	"LogS/internal/tui/components/dialogs/permissions"
-	"LogS/internal/tui/components/dialogs/quit"
-	"LogS/internal/tui/components/dialogs/sessions"
 	"LogS/internal/tui/page"
-	"LogS/internal/tui/page/chat"
+	"LogS/internal/tui/page/calendar"
+	"LogS/internal/tui/page/stats"
+	"LogS/internal/tui/page/tickets"
+	"LogS/internal/tui/page/welcome"
+	"LogS/internal/tui/page/worklog"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"LogS/shared"
+
+	"github.com/charmbracelet/bubbles/v2/key"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss/v2"
 )
 
 var lastMouseEvent time.Time
@@ -67,24 +56,27 @@ type appModel struct {
 	app *app.App
 
 	dialog       dialogs.DialogCmp
-	completions  completions.Completions
 	isConfigured bool
 
-	// Chat Page Specific
-	selectedSessionID string // The ID of the currently selected session
+	// Worklog Page Specific
+	selectedWorklogID string // The ID of the currently selected worklog
 }
 
 // Init initializes the application model and returns initial commands.
 func (a appModel) Init() tea.Cmd {
+	shared.LogErrorf("TUI_INIT", "Initializing TUI application model")
 	var cmds []tea.Cmd
 	cmd := a.pages[a.currentPage].Init()
 	cmds = append(cmds, cmd)
 	a.loadedPages[a.currentPage] = true
+	shared.LogErrorf("TUI_INIT", "Initialized page: %s", string(a.currentPage))
 
 	cmd = a.status.Init()
 	cmds = append(cmds, cmd)
+	shared.LogErrorf("TUI_INIT", "Status component initialized")
 
 	cmds = append(cmds, tea.EnableMouseAllMotion)
+	shared.LogErrorf("TUI_INIT", "Mouse motion enabled")
 
 	return tea.Batch(cmds...)
 }
@@ -93,7 +85,8 @@ func (a appModel) Init() tea.Cmd {
 func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
-	a.isConfigured = config.HasInitialDataConfig()
+	// TODO: Implement config check similar to crush
+	a.isConfigured = true // For now
 
 	switch msg := msg.(type) {
 	case tea.KeyboardEnhancementsMsg:
@@ -107,36 +100,18 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, tea.Batch(cmds...)
 	case tea.WindowSizeMsg:
 		a.wWidth, a.wHeight = msg.Width, msg.Height
-		a.completions.Update(msg)
 		return a, a.handleWindowResize(msg.Width, msg.Height)
-
-	// Completions messages
-	case completions.OpenCompletionsMsg, completions.FilterCompletionsMsg,
-		completions.CloseCompletionsMsg, completions.RepositionCompletionsMsg:
-		u, completionCmd := a.completions.Update(msg)
-		a.completions = u.(completions.Completions)
-		return a, completionCmd
 
 	// Dialog messages
 	case dialogs.OpenDialogMsg, dialogs.CloseDialogMsg:
-		u, completionCmd := a.completions.Update(completions.CloseCompletionsMsg{})
-		a.completions = u.(completions.Completions)
 		u, dialogCmd := a.dialog.Update(msg)
 		a.dialog = u.(dialogs.DialogCmp)
-		return a, tea.Batch(completionCmd, dialogCmd)
-	case commands.ShowArgumentsDialogMsg:
-		return a, util.CmdHandler(
-			dialogs.OpenDialogMsg{
-				Model: commands.NewCommandArgumentsDialog(
-					msg.CommandID,
-					msg.Content,
-					msg.ArgNames,
-				),
-			},
-		)
+		return a, dialogCmd
+
 	// Page change messages
 	case page.PageChangeMsg:
-		return a, a.moveToPage(msg.ID)
+		cmd := a.moveToPage(msg)
+		return a, cmd
 
 	// Status Messages
 	case util.InfoMsg, util.ClearStatusMsg:
@@ -145,134 +120,16 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, statusCmd)
 		return a, tea.Batch(cmds...)
 
-	// Session
-	case cmpChat.SessionSelectedMsg:
-		a.selectedSessionID = msg.ID
-	case cmpChat.SessionClearedMsg:
-		a.selectedSessionID = ""
-	// Commands
-	case commands.SwitchSessionsMsg:
-		return a, func() tea.Msg {
-			allSessions, _ := a.app.Sessions.List(context.Background())
-			return dialogs.OpenDialogMsg{
-				Model: sessions.NewSessionDialogCmp(allSessions, a.selectedSessionID),
-			}
-		}
-
-	case commands.SwitchModelMsg:
-		return a, util.CmdHandler(
-			dialogs.OpenDialogMsg{
-				Model: models.NewModelDialogCmp(),
-			},
-		)
-	// Compact
-	case commands.CompactMsg:
-		return a, util.CmdHandler(dialogs.OpenDialogMsg{
-			Model: compact.NewCompactDialogCmp(a.app.CoderAgent, msg.SessionID, true),
-		})
-	case commands.QuitMsg:
-		return a, util.CmdHandler(dialogs.OpenDialogMsg{
-			Model: quit.NewQuitDialog(),
-		})
-	case commands.ToggleYoloModeMsg:
-		a.app.Permissions.SetSkipRequests(!a.app.Permissions.SkipRequests())
-	case commands.ToggleHelpMsg:
-		a.status.ToggleFullHelp()
-		a.showingFullHelp = !a.showingFullHelp
-		return a, a.handleWindowResize(a.wWidth, a.wHeight)
-	// Model Switch
-	case models.ModelSelectedMsg:
-		if a.app.CoderAgent.IsBusy() {
-			return a, util.ReportWarn("Agent is busy, please wait...")
-		}
-		config.Get().UpdatePreferredModel(msg.ModelType, msg.Model)
-
-		// Update the agent with the new model/provider configuration
-		if err := a.app.UpdateAgentModel(); err != nil {
-			return a, util.ReportError(fmt.Errorf("model changed to %s but failed to update agent: %v", msg.Model.Model, err))
-		}
-
-		modelTypeName := "large"
-		if msg.ModelType == config.SelectedModelTypeSmall {
-			modelTypeName = "small"
-		}
-		return a, util.ReportInfo(fmt.Sprintf("%s model changed to %s", modelTypeName, msg.Model.Model))
-
-	// File Picker
-	case commands.OpenFilePickerMsg:
-		if a.dialog.ActiveDialogID() == filepicker.FilePickerID {
-			// If the commands dialog is already open, close it
-			return a, util.CmdHandler(dialogs.CloseDialogMsg{})
-		}
-		return a, util.CmdHandler(dialogs.OpenDialogMsg{
-			Model: filepicker.NewFilePickerCmp(a.app.Config().WorkingDir()),
-		})
-	// Permissions
-	case pubsub.Event[permission.PermissionNotification]:
+	// Worklog data message for stats page
+	case welcome.WorklogDataMsg:
+		shared.LogErrorf("TUI_UPDATE", "Received WorklogDataMsg, passing to current page: %s", string(a.currentPage))
 		item, ok := a.pages[a.currentPage]
-		if !ok {
-			return a, nil
-		}
-
-		// forward to page
-		updated, itemCmd := item.Update(msg)
-		a.pages[a.currentPage] = updated.(util.Model)
-		return a, itemCmd
-	case pubsub.Event[permission.PermissionRequest]:
-		return a, util.CmdHandler(dialogs.OpenDialogMsg{
-			Model: permissions.NewPermissionDialogCmp(msg.Payload, &permissions.Options{
-				DiffMode: config.Get().Options.TUI.DiffMode,
-			}),
-		})
-	case permissions.PermissionResponseMsg:
-		switch msg.Action {
-		case permissions.PermissionAllow:
-			a.app.Permissions.Grant(msg.Permission)
-		case permissions.PermissionAllowForSession:
-			a.app.Permissions.GrantPersistent(msg.Permission)
-		case permissions.PermissionDeny:
-			a.app.Permissions.Deny(msg.Permission)
+		if ok {
+			updated, cmd := item.Update(msg)
+			a.pages[a.currentPage] = updated.(util.Model)
+			return a, cmd
 		}
 		return a, nil
-	// Agent Events
-	case pubsub.Event[agent.AgentEvent]:
-		payload := msg.Payload
-
-		// Forward agent events to dialogs
-		if a.dialog.HasDialogs() && a.dialog.ActiveDialogID() == compact.CompactDialogID {
-			u, dialogCmd := a.dialog.Update(payload)
-			a.dialog = u.(dialogs.DialogCmp)
-			cmds = append(cmds, dialogCmd)
-		}
-
-		// Handle auto-compact logic
-		if payload.Done && payload.Type == agent.AgentEventTypeResponse && a.selectedSessionID != "" {
-			// Get current session to check token usage
-			session, err := a.app.Sessions.Get(context.Background(), a.selectedSessionID)
-			if err == nil {
-				model := a.app.CoderAgent.Model()
-				contextWindow := model.ContextWindow
-				tokens := session.CompletionTokens + session.PromptTokens
-				if (tokens >= int64(float64(contextWindow)*0.95)) && !config.Get().Options.DisableAutoSummarize { // Show compact confirmation dialog
-					cmds = append(cmds, util.CmdHandler(dialogs.OpenDialogMsg{
-						Model: compact.NewCompactDialogCmp(a.app.CoderAgent, a.selectedSessionID, false),
-					}))
-				}
-			}
-		}
-
-		return a, tea.Batch(cmds...)
-	case splash.OnboardingCompleteMsg:
-		item, ok := a.pages[a.currentPage]
-		if !ok {
-			return a, nil
-		}
-
-		a.isConfigured = config.HasInitialDataConfig()
-		updated, pageCmd := item.Update(msg)
-		a.pages[a.currentPage] = updated.(util.Model)
-		cmds = append(cmds, pageCmd)
-		return a, tea.Batch(cmds...)
 
 	case tea.KeyPressMsg:
 		return a, a.handleKeyPressMsg(msg)
@@ -310,6 +167,10 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(cmds...)
 	}
+	
+	// Log all other message types for debugging
+	shared.LogErrorf("TUI_UPDATE", "Received message type: %T for page: %s", msg, string(a.currentPage))
+	
 	s, _ := a.status.Update(msg)
 	a.status = s.(status.StatusCmp)
 
@@ -360,18 +221,6 @@ func (a *appModel) handleWindowResize(width, height int) tea.Cmd {
 
 // handleKeyPressMsg processes keyboard input and routes to appropriate handlers.
 func (a *appModel) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
-	if a.completions.Open() {
-		// completions
-		keyMap := a.completions.KeyMap()
-		switch {
-		case key.Matches(msg, keyMap.Up), key.Matches(msg, keyMap.Down),
-			key.Matches(msg, keyMap.Select), key.Matches(msg, keyMap.Cancel),
-			key.Matches(msg, keyMap.UpInsert), key.Matches(msg, keyMap.DownInsert):
-			u, cmd := a.completions.Update(msg)
-			a.completions = u.(completions.Completions)
-			return cmd
-		}
-	}
 	if a.dialog.HasDialogs() {
 		u, dialogCmd := a.dialog.Update(msg)
 		a.dialog = u.(dialogs.DialogCmp)
@@ -385,57 +234,7 @@ func (a *appModel) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		return a.handleWindowResize(a.wWidth, a.wHeight)
 	// dialogs
 	case key.Matches(msg, a.keyMap.Quit):
-		if a.dialog.ActiveDialogID() == quit.QuitDialogID {
-			return tea.Quit
-		}
-		return util.CmdHandler(dialogs.OpenDialogMsg{
-			Model: quit.NewQuitDialog(),
-		})
-
-	case key.Matches(msg, a.keyMap.Commands):
-		// if the app is not configured show no commands
-		if !a.isConfigured {
-			return nil
-		}
-		if a.dialog.ActiveDialogID() == commands.CommandsDialogID {
-			return util.CmdHandler(dialogs.CloseDialogMsg{})
-		}
-		if a.dialog.HasDialogs() {
-			return nil
-		}
-		return util.CmdHandler(dialogs.OpenDialogMsg{
-			Model: commands.NewCommandDialog(a.selectedSessionID),
-		})
-	case key.Matches(msg, a.keyMap.Sessions):
-		// if the app is not configured show no sessions
-		if !a.isConfigured {
-			return nil
-		}
-		if a.dialog.ActiveDialogID() == sessions.SessionsDialogID {
-			return util.CmdHandler(dialogs.CloseDialogMsg{})
-		}
-		if a.dialog.HasDialogs() && a.dialog.ActiveDialogID() != commands.CommandsDialogID {
-			return nil
-		}
-		var cmds []tea.Cmd
-		if a.dialog.ActiveDialogID() == commands.CommandsDialogID {
-			// If the commands dialog is open, close it first
-			cmds = append(cmds, util.CmdHandler(dialogs.CloseDialogMsg{}))
-		}
-		cmds = append(cmds,
-			func() tea.Msg {
-				allSessions, _ := a.app.Sessions.List(context.Background())
-				return dialogs.OpenDialogMsg{
-					Model: sessions.NewSessionDialogCmp(allSessions, a.selectedSessionID),
-				}
-			},
-		)
-		return tea.Sequence(cmds...)
-	case key.Matches(msg, a.keyMap.Suspend):
-		if a.app.CoderAgent != nil && a.app.CoderAgent.IsBusy() {
-			return util.ReportWarn("Agent is busy, please wait...")
-		}
-		return tea.Suspend
+		return tea.Quit
 	default:
 		item, ok := a.pages[a.currentPage]
 		if !ok {
@@ -449,13 +248,12 @@ func (a *appModel) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 // moveToPage handles navigation between different pages in the application.
-func (a *appModel) moveToPage(pageID page.PageID) tea.Cmd {
-	if a.app.CoderAgent.IsBusy() {
-		// TODO: maybe remove this :  For now we don't move to any page if the agent is busy
-		return util.ReportWarn("Agent is busy, please wait...")
-	}
-
+func (a *appModel) moveToPage(msg page.PageChangeMsg) tea.Cmd {
 	var cmds []tea.Cmd
+	pageID := msg.ID
+	
+	shared.LogErrorf("TUI_NAVIGATE", "Moving to page: %s, hasData: %v", string(pageID), msg.Data != nil)
+	
 	if _, ok := a.loadedPages[pageID]; !ok {
 		cmd := a.pages[pageID].Init()
 		cmds = append(cmds, cmd)
@@ -463,6 +261,20 @@ func (a *appModel) moveToPage(pageID page.PageID) tea.Cmd {
 	}
 	a.previousPage = a.currentPage
 	a.currentPage = pageID
+	
+	// Handle data passing to the new page
+	if msg.Data != nil && (pageID == "stats" || pageID == "tickets" || pageID == "calendar") {
+		shared.LogErrorf("TUI_NAVIGATE", "Passing data to %s page", string(pageID))
+		if worklogData, ok := msg.Data.(welcome.WorklogDataMsg); ok {
+			shared.LogErrorf("TUI_NAVIGATE", "Found WorklogDataMsg, setting %s data - TicketLogs: %d, DailyHours: %d, DailyTickets: %d",
+				string(pageID), len(worklogData.TicketLogs), len(worklogData.DailyHours), len(worklogData.DailyTickets))
+			// Send the data message to the target page
+			cmds = append(cmds, func() tea.Msg {
+				return worklogData
+			})
+		}
+	}
+	
 	if sizable, ok := a.pages[a.currentPage].(layout.Sizeable); ok {
 		cmd := sizable.SetSize(a.width, a.height)
 		cmds = append(cmds, cmd)
@@ -494,6 +306,7 @@ func (a *appModel) View() tea.View {
 		return view
 	}
 
+	shared.LogErrorf("TUI_VIEW", "Rendering page: %s", string(a.currentPage))
 	page := a.pages[a.currentPage]
 	if withHelp, ok := page.(core.KeyMapHelp); ok {
 		a.status.SetKeyMap(withHelp.Help())
@@ -518,11 +331,6 @@ func (a *appModel) View() tea.View {
 	var cursor *tea.Cursor
 	if v, ok := page.(util.Cursor); ok {
 		cursor = v.Cursor()
-		// Hide the cursor if it's positioned outside the textarea
-		statusHeight := a.height - strings.Count(pageView, "\n") + 1
-		if cursor != nil && cursor.Y+statusHeight+chat.EditorHeight-2 <= a.height { // 2 for the top and bottom app padding
-			cursor = nil
-		}
 	}
 	activeView := a.dialog.ActiveModel()
 	if activeView != nil {
@@ -530,15 +338,6 @@ func (a *appModel) View() tea.View {
 		if v, ok := activeView.(util.Cursor); ok {
 			cursor = v.Cursor()
 		}
-	}
-
-	if a.completions.Open() && cursor != nil {
-		cmp := a.completions.View()
-		x, y := a.completions.Position()
-		layers = append(
-			layers,
-			lipgloss.NewLayer(cmp).X(x).Y(y),
-		)
 	}
 
 	canvas := lipgloss.NewCanvas(
@@ -552,24 +351,44 @@ func (a *appModel) View() tea.View {
 
 // New creates and initializes a new TUI application model.
 func New(app *app.App) tea.Model {
-	chatPage := chat.New(app)
+	shared.LogErrorf("TUI_NEW", "Creating new TUI application model")
+	welcomePage := welcome.New(app)
+	shared.LogErrorf("TUI_NEW", "Welcome page created")
+	
+	statsPage := stats.New(app)
+	shared.LogErrorf("TUI_NEW", "Stats page created")
+	
+	calendarPage := calendar.New(app)
+	shared.LogErrorf("TUI_NEW", "Calendar page created")
+	
+	ticketsPage := tickets.New(app)
+	shared.LogErrorf("TUI_NEW", "Tickets page created")
+	
+	worklogPage := worklog.New(app)
+	shared.LogErrorf("TUI_NEW", "Worklog page created")
+	
 	keyMap := DefaultKeyMap()
-	keyMap.pageBindings = chatPage.Bindings()
+	keyMap.pageBindings = welcomePage.Bindings()
+	shared.LogErrorf("TUI_NEW", "Key mappings configured")
 
 	model := &appModel{
-		currentPage: chat.ChatPageID,
+		currentPage: welcome.WelcomePageID,
 		app:         app,
 		status:      status.NewStatusCmp(),
 		loadedPages: make(map[page.PageID]bool),
 		keyMap:      keyMap,
 
 		pages: map[page.PageID]util.Model{
-			chat.ChatPageID: chatPage,
+			welcome.WelcomePageID:   welcomePage,
+			stats.StatsPageID:       statsPage,
+			calendar.CalendarPageID: calendarPage,
+			tickets.TicketsPageID:   ticketsPage,
+			worklog.WorklogPageID:   worklogPage,
 		},
 
-		dialog:      dialogs.NewDialogCmp(),
-		completions: completions.New(),
+		dialog: dialogs.NewDialogCmp(),
 	}
 
+	shared.LogErrorf("TUI_NEW", "TUI application model created successfully with page: %s", string(welcome.WelcomePageID))
 	return model
 }

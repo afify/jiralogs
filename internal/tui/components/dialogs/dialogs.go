@@ -3,9 +3,9 @@ package dialogs
 import (
 	"slices"
 
+	tea "github.com/charmbracelet/bubbletea/v2"
 	"LogS/internal/tui/util"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/v2"
 )
 
 type DialogID string
@@ -126,6 +126,10 @@ func (d dialogCmp) handleOpen(msg OpenDialogMsg) (tea.Model, tea.Cmd) {
 	})
 	cmds = append(cmds, cmd)
 	return d, tea.Batch(cmds...)
+}
+
+func (d dialogCmp) View() string {
+	return ""
 }
 
 func (d dialogCmp) Dialogs() []DialogModel {

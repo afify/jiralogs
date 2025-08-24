@@ -1,6 +1,6 @@
 module LogS
 
-go 1.25.0
+go 1.24.6
 
 require (
 	github.com/MakeNowJust/heredoc v1.0.0
@@ -35,10 +35,12 @@ require (
 
 require (
 	github.com/alecthomas/chroma v0.10.0 // indirect
+	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/charmbracelet/bubbletea/v2 v2.0.0-beta.4.0.20250813213544-5cc219db8892 // indirect
 	github.com/charmbracelet/colorprofile v0.3.2 // indirect
+	github.com/charmbracelet/glamour/v2 v2.0.0-20250811143442-a27abb32f018 // indirect
 	github.com/charmbracelet/harmonica v0.2.0 // indirect
 	github.com/charmbracelet/x/cellbuf v0.0.14-0.20250811133356-e0c5dbe5ea4a // indirect
 	github.com/charmbracelet/x/exp/color v0.0.0-20250821175832-f235fab04313 // indirect

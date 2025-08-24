@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 type Cursor interface {
@@ -57,6 +57,9 @@ type (
 		Type InfoType
 		Msg  string
 		TTL  time.Duration
+	}
+	ErrorMsg struct {
+		Err error
 	}
 	ClearStatusMsg struct{}
 )

@@ -1,45 +1,71 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"LogS/jira"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	"LogS/internal/app"
+	"LogS/internal/config"
+	"LogS/internal/tui"
 	"LogS/shared"
-	"LogS/tui"
-
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
-	// Start TUI immediately with initialization function
-	app := tui.NewApp(initializeApp)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	p := tea.NewProgram(app,
-		tea.WithAltScreen(),
-	)
+	shared.LogErrorf("MAIN", "Starting jiralogs application")
 
-	if _, err := p.Run(); err != nil {
-		log.Fatal("Error running program:", err)
-		os.Exit(shared.ExitCodeError)
-	}
-}
-
-func initializeApp() (tui.JiraClientInterface, tui.WorklogServiceInterface, error) {
 	// Load configuration
-	if err := LoadConfig(); err != nil {
-		return nil, nil, err
-	}
+	cfg := config.New()
+	shared.LogErrorf("CONFIG", "Configuration loaded: IsConfigured=%v", cfg.IsConfigured())
 
-	// Create Jira client
-	client := jira.NewJiraClient(BaseURL, Email, APIToken)
-
-	// Create worklog service
-	service, err := jira.NewWorklogService(client)
+	// Create app
+	app, err := app.New(ctx, cfg)
 	if err != nil {
-		return nil, nil, err
+		shared.LogError("APP", err)
+		log.Fatalf("Failed to create app: %v", err)
+	}
+	defer app.Shutdown()
+	shared.LogErrorf("APP", "Application instance created successfully")
+
+	// Create TUI model
+	model := tui.New(app)
+	shared.LogErrorf("TUI", "TUI model created successfully")
+
+	// Setup program options
+	opts := []tea.ProgramOption{
+		tea.WithMouseAllMotion(),
+		tea.WithFilter(tui.MouseEventFilter),
 	}
 
-	// Wrap them to implement the interfaces
-	return &jiraClientWrapper{client}, &worklogServiceWrapper{service}, nil
+	// Create and run the program
+	program := tea.NewProgram(model, opts...)
+	shared.LogErrorf("PROGRAM", "Bubble Tea program created successfully")
+
+	// Start the app subscription in background
+	go app.Subscribe(program)
+	shared.LogErrorf("SUBSCRIPTION", "App subscription started in background")
+
+	// Handle shutdown signals
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		shared.LogErrorf("SIGNAL", "Shutdown signal received")
+		program.Quit()
+		cancel()
+	}()
+
+	// Run the program
+	shared.LogErrorf("PROGRAM", "Starting Bubble Tea program")
+	if _, err := program.Run(); err != nil {
+		shared.LogError("PROGRAM", err)
+		log.Fatalf("Program error: %v", err)
+	}
+	shared.LogErrorf("MAIN", "Application shutdown complete")
 }

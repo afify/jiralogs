@@ -10,8 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/v2/textarea"
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
-	// "LogS/internal/tui/exp/diffview" // Not needed for LogS
-	"github.com/charmbracelet/glamour/ansi"
+	"github.com/charmbracelet/glamour/v2/ansi"
 	"github.com/charmbracelet/lipgloss/v2"
 	"github.com/charmbracelet/x/exp/charmtone"
 	"github.com/lucasb-eyer/go-colorful"
@@ -118,9 +117,6 @@ type Styles struct {
 
 	// Help
 	Help help.Styles
-
-	// Diff
-	// Diff diffview.Style // Not needed for LogS
 
 	// FilePicker
 	FilePicker filepicker.Styles
@@ -416,7 +412,7 @@ func (t *Theme) buildStyles() *Styles {
 			DefinitionDescription: ansi.StylePrimitive{
 				BlockPrefix: "\n ",
 			},
-		}, // */
+		},
 
 		Help: help.Styles{
 			ShortKey:       base.Foreground(t.FgMuted),
@@ -427,51 +423,6 @@ func (t *Theme) buildStyles() *Styles {
 			FullDesc:       base.Foreground(t.FgSubtle),
 			FullSeparator:  base.Foreground(t.Border),
 		},
-
-		/* Diff: diffview.Style{
-			DividerLine: diffview.LineStyle{
-				LineNumber: lipgloss.NewStyle().
-					Foreground(t.FgHalfMuted).
-					Background(t.BgBaseLighter),
-				Code: lipgloss.NewStyle().
-					Foreground(t.FgHalfMuted).
-					Background(t.BgBaseLighter),
-			},
-			MissingLine: diffview.LineStyle{
-				LineNumber: lipgloss.NewStyle().
-					Background(t.BgBaseLighter),
-				Code: lipgloss.NewStyle().
-					Background(t.BgBaseLighter),
-			},
-			EqualLine: diffview.LineStyle{
-				LineNumber: lipgloss.NewStyle().
-					Foreground(t.FgMuted).
-					Background(t.BgBase),
-				Code: lipgloss.NewStyle().
-					Foreground(t.FgMuted).
-					Background(t.BgBase),
-			},
-			InsertLine: diffview.LineStyle{
-				LineNumber: lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#629657")).
-					Background(lipgloss.Color("#2b322a")),
-				Symbol: lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#629657")).
-					Background(lipgloss.Color("#323931")),
-				Code: lipgloss.NewStyle().
-					Background(lipgloss.Color("#323931")),
-			},
-			DeleteLine: diffview.LineStyle{
-				LineNumber: lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#a45c59")).
-					Background(lipgloss.Color("#312929")),
-				Symbol: lipgloss.NewStyle().
-					Foreground(lipgloss.Color("#a45c59")).
-					Background(lipgloss.Color("#383030")),
-				Code: lipgloss.NewStyle().
-					Background(lipgloss.Color("#383030")),
-			},
-		}, */
 		FilePicker: filepicker.Styles{
 			DisabledCursor:   base.Foreground(t.FgMuted),
 			Cursor:           base.Foreground(t.FgBase),
@@ -694,3 +645,8 @@ func blendColors(size int, stops ...color.Color) []color.Color {
 
 	return blended
 }
+
+// Helper functions for style pointers
+func boolPtr(b bool) *bool       { return &b }
+func stringPtr(s string) *string { return &s }
+func uintPtr(u uint) *uint       { return &u }
