@@ -3,8 +3,8 @@ package tui
 import (
 	"LogS/shared"
 	"github.com/charmbracelet/bubbles/progress"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // RenderInitializationPage renders the initialization view with banner in the middle

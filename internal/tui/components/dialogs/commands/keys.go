@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/key"
 )
 
 type CommandsDialogKeyMap struct {

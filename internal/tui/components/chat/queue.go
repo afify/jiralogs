@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"LogS/internal/tui/styles"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func queuePill(queue int, t *styles.Theme) string {

@@ -6,7 +6,7 @@ import (
 	"LogS/internal/csync"
 	"LogS/internal/tui/components/core/layout"
 	"LogS/internal/tui/util"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Group[T Item] struct {

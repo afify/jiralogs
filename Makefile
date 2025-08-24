@@ -8,6 +8,9 @@ export GOWORK=off
 make:
 	@go run .
 
+build:
+	@go build .
+
 check:
 	@printf "$(CYAN)*** go fmt…$(NC)\n"
 	@go fmt ./...

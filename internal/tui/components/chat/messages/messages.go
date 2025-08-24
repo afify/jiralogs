@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/bubbles/v2/viewport"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/google/uuid"
 

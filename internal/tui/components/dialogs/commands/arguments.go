@@ -7,11 +7,11 @@ import (
 	"LogS/internal/tui/components/dialogs"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
-	"github.com/charmbracelet/bubbles/v2/help"
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/bubbles/v2/textinput"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 const (

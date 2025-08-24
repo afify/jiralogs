@@ -58,18 +58,18 @@ func NewCharmtoneTheme() *Theme {
 	}
 
 	// Text selection.
-	t.TextSelection = lipgloss.NewStyle().Foreground(charmtone.Salt).Background(charmtone.Charple)
+	t.TextSelection = lipgloss.NewStyle().Foreground(t.FgSelected).Background(t.Primary)
 
 	// LSP and MCP status.
-	t.ItemOfflineIcon = lipgloss.NewStyle().Foreground(charmtone.Squid).SetString("●")
-	t.ItemBusyIcon = t.ItemOfflineIcon.Foreground(charmtone.Citron)
-	t.ItemErrorIcon = t.ItemOfflineIcon.Foreground(charmtone.Coral)
-	t.ItemOnlineIcon = t.ItemOfflineIcon.Foreground(charmtone.Guac)
+	t.ItemOfflineIcon = lipgloss.NewStyle().Foreground(t.FgMuted).SetString("●")
+	t.ItemBusyIcon = t.ItemOfflineIcon.Foreground(t.Warning)
+	t.ItemErrorIcon = t.ItemOfflineIcon.Foreground(t.Error)
+	t.ItemOnlineIcon = t.ItemOfflineIcon.Foreground(t.Success)
 
-	t.YoloIconFocused = lipgloss.NewStyle().Foreground(charmtone.Oyster).Background(charmtone.Citron).Bold(true).SetString(" ! ")
-	t.YoloIconBlurred = t.YoloIconFocused.Foreground(charmtone.Pepper).Background(charmtone.Squid)
-	t.YoloDotsFocused = lipgloss.NewStyle().Foreground(charmtone.Zest).SetString(":::")
-	t.YoloDotsBlurred = t.YoloDotsFocused.Foreground(charmtone.Squid)
+	t.YoloIconFocused = lipgloss.NewStyle().Foreground(t.FgSubtle).Background(t.Warning).Bold(true).SetString(" ! ")
+	t.YoloIconBlurred = t.YoloIconFocused.Foreground(t.BgBase).Background(t.FgMuted)
+	t.YoloDotsFocused = lipgloss.NewStyle().Foreground(t.Accent).SetString(":::")
+	t.YoloDotsBlurred = t.YoloDotsFocused.Foreground(t.FgMuted)
 
 	return t
 }

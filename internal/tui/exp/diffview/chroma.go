@@ -7,8 +7,7 @@ import (
 	"strings"
 
 	"LogS/internal/ansiext"
-	"github.com/alecthomas/chroma/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 )
 
 var _ chroma.Formatter = chromaFormatter{}

@@ -9,7 +9,7 @@ import (
 	"LogS/internal/tui/exp/list"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
 )
 

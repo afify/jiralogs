@@ -1,7 +1,7 @@
 package diffview
 
 import (
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/exp/charmtone"
 )
 

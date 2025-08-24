@@ -25,9 +25,9 @@ import (
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
 	"LogS/internal/version"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/catwalk/pkg/catwalk"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )

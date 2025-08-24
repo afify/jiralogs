@@ -4,7 +4,7 @@ import (
 	"log/slog"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Cursor interface {

@@ -7,7 +7,7 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Model struct {

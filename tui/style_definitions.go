@@ -2,7 +2,7 @@ package tui
 
 import (
 	"LogS/shared"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 )
 
 var (

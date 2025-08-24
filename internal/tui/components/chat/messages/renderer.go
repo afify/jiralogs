@@ -13,8 +13,8 @@ import (
 	"LogS/internal/tui/components/core"
 	"LogS/internal/tui/highlight"
 	"LogS/internal/tui/styles"
-	"github.com/charmbracelet/lipgloss/v2"
-	"github.com/charmbracelet/lipgloss/v2/tree"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/charmbracelet/x/ansi"
 )
 

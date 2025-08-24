@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 
 	"LogS/internal/app"
 	"LogS/internal/config"

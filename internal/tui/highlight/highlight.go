@@ -5,10 +5,6 @@ import (
 	"image/color"
 
 	"LogS/internal/tui/styles"
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/formatters"
-	"github.com/alecthomas/chroma/v2/lexers"
-	chromaStyles "github.com/alecthomas/chroma/v2/styles"
 )
 
 func SyntaxHighlight(source, fileName string, bg color.Color) (string, error) {

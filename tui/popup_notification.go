@@ -2,8 +2,8 @@ package tui
 
 import (
 	"LogS/shared"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // NotificationType represents the type of notification

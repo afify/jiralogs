@@ -3,7 +3,7 @@ package mcp
 import (
 	"fmt"
 
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 
 	"LogS/internal/config"
 	"LogS/internal/llm/agent"

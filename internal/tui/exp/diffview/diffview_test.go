@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"LogS/internal/tui/exp/diffview"
-	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/exp/golden"
 )

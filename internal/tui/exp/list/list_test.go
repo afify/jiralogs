@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"LogS/internal/tui/components/core/layout"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/exp/golden"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

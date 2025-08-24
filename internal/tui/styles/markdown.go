@@ -1,7 +1,7 @@
 package styles
 
 import (
-	"github.com/charmbracelet/glamour/v2"
+	"github.com/charmbracelet/glamour"
 )
 
 // Helper functions for style pointers

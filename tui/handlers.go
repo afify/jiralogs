@@ -5,7 +5,7 @@ import (
 
 	"LogS/shared"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func (m *AppModel) handleMainMenuKeys(msg tea.KeyMsg) tea.Cmd {

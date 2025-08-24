@@ -6,10 +6,9 @@ import (
 
 	"LogS/internal/tui/exp/diffview"
 	"LogS/internal/tui/styles"
-	"github.com/alecthomas/chroma/v2"
-	"github.com/charmbracelet/bubbles/v2/help"
-	"github.com/charmbracelet/bubbles/v2/key"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 

@@ -10,7 +10,7 @@ import (
 
 	"LogS/internal/config"
 	"LogS/internal/tui/util"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 const (

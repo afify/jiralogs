@@ -3,7 +3,7 @@ package tui
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func SimulateProgressSteps() tea.Cmd {

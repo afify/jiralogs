@@ -8,7 +8,7 @@ import (
 	"LogS/shared"
 	"LogS/tui"
 
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {

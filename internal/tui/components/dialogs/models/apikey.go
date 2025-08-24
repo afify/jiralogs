@@ -7,10 +7,10 @@ import (
 	"LogS/internal/config"
 	"LogS/internal/fsext"
 	"LogS/internal/tui/styles"
-	"github.com/charmbracelet/bubbles/v2/spinner"
-	"github.com/charmbracelet/bubbles/v2/textinput"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type APIKeyInputState int

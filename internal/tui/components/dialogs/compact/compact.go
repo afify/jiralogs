@@ -3,9 +3,9 @@ package compact
 import (
 	"context"
 
-	"github.com/charmbracelet/bubbles/v2/key"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"LogS/internal/llm/agent"
 	"LogS/internal/tui/components/core"

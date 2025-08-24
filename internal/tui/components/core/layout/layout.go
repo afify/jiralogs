@@ -1,8 +1,8 @@
 package layout
 
 import (
-	"github.com/charmbracelet/bubbles/v2/key"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // TODO: move this to core

@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/v2/textinput"
 	tea "github.com/charmbracelet/bubbletea/v2"
 	// "LogS/internal/tui/exp/diffview" // Not needed for LogS
-	"github.com/charmbracelet/glamour/v2/ansi"
+	"github.com/charmbracelet/glamour/ansi"
 	"github.com/charmbracelet/lipgloss/v2"
 	"github.com/charmbracelet/x/exp/charmtone"
 	"github.com/lucasb-eyer/go-colorful"

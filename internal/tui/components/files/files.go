@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
 	"LogS/internal/config"

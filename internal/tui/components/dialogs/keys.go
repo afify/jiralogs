@@ -1,7 +1,7 @@
 package dialogs
 
 import (
-	"github.com/charmbracelet/bubbles/v2/key"
+	"github.com/charmbracelet/bubbles/key"
 )
 
 // KeyMap defines keyboard bindings for dialog management.

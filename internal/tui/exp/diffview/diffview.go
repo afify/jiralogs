@@ -6,10 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/aymanbagabas/go-udiff"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/zeebo/xxh3"
 )

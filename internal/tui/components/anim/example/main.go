@@ -7,8 +7,8 @@ import (
 
 	anim "LogS/internal/tui/components/anim"
 	"LogS/internal/tui/styles"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type model struct {

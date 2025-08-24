@@ -13,11 +13,11 @@ import (
 	"LogS/internal/tui/components/image"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
-	"github.com/charmbracelet/bubbles/v2/filepicker"
-	"github.com/charmbracelet/bubbles/v2/help"
-	"github.com/charmbracelet/bubbles/v2/key"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/bubbles/filepicker"
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 const (

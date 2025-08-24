@@ -5,9 +5,9 @@ import (
 
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
-	"github.com/charmbracelet/bubbles/v2/help"
-	tea "github.com/charmbracelet/bubbletea/v2"
-	"github.com/charmbracelet/lipgloss/v2"
+	"github.com/charmbracelet/bubbles/help"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 

@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type menuItem struct {
