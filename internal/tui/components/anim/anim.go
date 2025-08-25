@@ -11,8 +11,8 @@ import (
 
 	"github.com/zeebo/xxh3"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "github.com/charmbracelet/bubbletea/v2"
+	"github.com/charmbracelet/lipgloss/v2"
 	"github.com/lucasb-eyer/go-colorful"
 
 	"LogS/internal/csync"

@@ -51,3 +51,42 @@ func (j *JiraClient) AddWorklog(issueKey string, date string, hours float64, com
 
 	return nil
 }
+
+func (j *JiraClient) UpdateWorklog(issueKey string, worklogID string, hours float64, comment string) error {
+	endpoint := fmt.Sprintf("/rest/api/2/issue/%s/worklog/%s", issueKey, worklogID)
+	seconds := int(hours * shared.SecondsPerHour)
+
+	payload := map[string]interface{}{
+		"timeSpentSeconds": seconds,
+	}
+
+	if comment != "" {
+		payload["comment"] = comment
+	}
+
+	jsonPayload, err := json.Marshal(payload)
+	if err != nil {
+		shared.LogError("JiraClient.UpdateWorklog", err)
+		return fmt.Errorf("creating update worklog payload: %w", err)
+	}
+
+	_, err = j.request("PUT", endpoint, jsonPayload)
+	if err != nil {
+		shared.LogError("JiraClient.UpdateWorklog", err)
+		return fmt.Errorf("updating worklog %s on %s: %w", worklogID, issueKey, err)
+	}
+
+	return nil
+}
+
+func (j *JiraClient) DeleteWorklog(issueKey string, worklogID string) error {
+	endpoint := fmt.Sprintf("/rest/api/2/issue/%s/worklog/%s", issueKey, worklogID)
+
+	_, err := j.request("DELETE", endpoint, nil)
+	if err != nil {
+		shared.LogError("JiraClient.DeleteWorklog", err)
+		return fmt.Errorf("deleting worklog %s from %s: %w", worklogID, issueKey, err)
+	}
+
+	return nil
+}

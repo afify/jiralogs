@@ -36,10 +36,15 @@ func (w *WorklogService) FetchWorklogs(period shared.Period) (map[string]*shared
 			ticketLogs[issue.Key] = ticketLog
 
 			if len(ticketLog.Logs) > 0 {
-				for _, log := range ticketLog.Logs {
-					dailyHours[log.Date] += log.Hours
-					if !contains(dailyTickets[log.Date], issue.Key) {
-						dailyTickets[log.Date] = append(dailyTickets[log.Date], issue.Key)
+				for _, worklog := range ticketLog.Logs {
+					// Parse the worklog start time to get the date
+					if startTime, err := time.Parse(shared.WorklogDateFormat, worklog.Started); err == nil {
+						date := startTime.Format(shared.DateFormat)
+						hours := float64(worklog.TimeSpentSeconds) / shared.SecondsPerHour
+						dailyHours[date] += hours
+						if !contains(dailyTickets[date], issue.Key) {
+							dailyTickets[date] = append(dailyTickets[date], issue.Key)
+						}
 					}
 				}
 			}
@@ -58,7 +63,7 @@ func (w *WorklogService) processIssueWorklogs(issue shared.Issue, period shared.
 	ticketLog := &shared.TicketWorklog{
 		Key:     issue.Key,
 		Summary: issue.Fields.Summary,
-		Logs:    []shared.DayLog{},
+		Logs:    []shared.Worklog{},
 		Total:   shared.ZeroHours,
 	}
 
@@ -81,16 +86,12 @@ func (w *WorklogService) processIssueWorklogs(issue shared.Issue, period shared.
 		}
 
 		hours := float64(wl.TimeSpentSeconds) / shared.SecondsPerHour
-		ticketLog.Logs = append(ticketLog.Logs, shared.DayLog{
-			Date:    date,
-			Hours:   hours,
-			Comment: wl.Comment,
-		})
+		ticketLog.Logs = append(ticketLog.Logs, wl)
 		ticketLog.Total += hours
 	}
 
 	sort.Slice(ticketLog.Logs, func(i, j int) bool {
-		return ticketLog.Logs[i].Date < ticketLog.Logs[j].Date
+		return ticketLog.Logs[i].Started < ticketLog.Logs[j].Started
 	})
 
 	return ticketLog, nil

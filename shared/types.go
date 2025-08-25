@@ -30,11 +30,17 @@ type Issue struct {
 }
 
 type Worklog struct {
+	ID     string `json:"id"`
 	Author struct {
-		AccountID string `json:"accountId"`
+		AccountID    string `json:"accountId"`
+		DisplayName  string `json:"displayName"`
+		EmailAddress string `json:"emailAddress"`
 	} `json:"author"`
 	TimeSpentSeconds int    `json:"timeSpentSeconds"`
+	TimeSpent        string `json:"timeSpent"`
 	Started          string `json:"started"`
+	Created          string `json:"created"`
+	Updated          string `json:"updated"`
 	Comment          string `json:"comment"`
 }
 
@@ -47,7 +53,7 @@ type DayLog struct {
 type TicketWorklog struct {
 	Key     string
 	Summary string
-	Logs    []DayLog
+	Logs    []Worklog
 	Total   float64
 }
 

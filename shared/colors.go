@@ -1,6 +1,6 @@
 package shared
 
-import "github.com/charmbracelet/lipgloss"
+import "github.com/charmbracelet/lipgloss/v2"
 
 // Colors used throughout the application - Modern palette inspired by Bubble Tea & Lipgloss
 var (

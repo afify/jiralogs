@@ -7,9 +7,9 @@ import (
 	"LogS/internal/tui/components/core"
 	"LogS/internal/tui/components/core/layout"
 	"LogS/internal/tui/components/core/status"
-	"LogS/internal/tui/components/dialogs"
 	"LogS/internal/tui/page"
 	"LogS/internal/tui/page/calendar"
+	"LogS/internal/tui/page/daydetails"
 	"LogS/internal/tui/page/logging"
 	"LogS/internal/tui/page/stats"
 	"LogS/internal/tui/page/tickets"
@@ -56,7 +56,6 @@ type appModel struct {
 
 	app *app.App
 
-	dialog       dialogs.DialogCmp
 	isConfigured bool
 
 	// Worklog Page Specific
@@ -103,12 +102,6 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.wWidth, a.wHeight = msg.Width, msg.Height
 		return a, a.handleWindowResize(msg.Width, msg.Height)
 
-	// Dialog messages
-	case dialogs.OpenDialogMsg, dialogs.CloseDialogMsg:
-		u, dialogCmd := a.dialog.Update(msg)
-		a.dialog = u.(dialogs.DialogCmp)
-		return a, dialogCmd
-
 	// Page change messages
 	case page.PageChangeMsg:
 		cmd := a.moveToPage(msg)
@@ -136,36 +129,24 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleKeyPressMsg(msg)
 
 	case tea.MouseWheelMsg:
-		if a.dialog.HasDialogs() {
-			u, dialogCmd := a.dialog.Update(msg)
-			a.dialog = u.(dialogs.DialogCmp)
-			cmds = append(cmds, dialogCmd)
-		} else {
-			item, ok := a.pages[a.currentPage]
-			if !ok {
-				return a, nil
-			}
-
-			updated, pageCmd := item.Update(msg)
-			a.pages[a.currentPage] = updated.(util.Model)
-			cmds = append(cmds, pageCmd)
+		item, ok := a.pages[a.currentPage]
+		if !ok {
+			return a, nil
 		}
+
+		updated, pageCmd := item.Update(msg)
+		a.pages[a.currentPage] = updated.(util.Model)
+		cmds = append(cmds, pageCmd)
 		return a, tea.Batch(cmds...)
 	case tea.PasteMsg:
-		if a.dialog.HasDialogs() {
-			u, dialogCmd := a.dialog.Update(msg)
-			a.dialog = u.(dialogs.DialogCmp)
-			cmds = append(cmds, dialogCmd)
-		} else {
-			item, ok := a.pages[a.currentPage]
-			if !ok {
-				return a, nil
-			}
-
-			updated, pageCmd := item.Update(msg)
-			a.pages[a.currentPage] = updated.(util.Model)
-			cmds = append(cmds, pageCmd)
+		item, ok := a.pages[a.currentPage]
+		if !ok {
+			return a, nil
 		}
+
+		updated, pageCmd := item.Update(msg)
+		a.pages[a.currentPage] = updated.(util.Model)
+		cmds = append(cmds, pageCmd)
 		return a, tea.Batch(cmds...)
 	}
 
@@ -182,11 +163,6 @@ func (a *appModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	updated, cmd := item.Update(msg)
 	a.pages[a.currentPage] = updated.(util.Model)
 
-	if a.dialog.HasDialogs() {
-		u, dialogCmd := a.dialog.Update(msg)
-		a.dialog = u.(dialogs.DialogCmp)
-		cmds = append(cmds, dialogCmd)
-	}
 	cmds = append(cmds, cmd)
 	return a, tea.Batch(cmds...)
 }
@@ -212,21 +188,11 @@ func (a *appModel) handleWindowResize(width, height int) tea.Cmd {
 		cmds = append(cmds, pageCmd)
 	}
 
-	// Update the dialogs
-	dialog, cmd := a.dialog.Update(tea.WindowSizeMsg{Width: width, Height: height})
-	a.dialog = dialog.(dialogs.DialogCmp)
-	cmds = append(cmds, cmd)
-
 	return tea.Batch(cmds...)
 }
 
 // handleKeyPressMsg processes keyboard input and routes to appropriate handlers.
 func (a *appModel) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
-	if a.dialog.HasDialogs() {
-		u, dialogCmd := a.dialog.Update(msg)
-		a.dialog = u.(dialogs.DialogCmp)
-		return dialogCmd
-	}
 	switch {
 	// help
 	case key.Matches(msg, a.keyMap.Help):
@@ -264,15 +230,26 @@ func (a *appModel) moveToPage(msg page.PageChangeMsg) tea.Cmd {
 	a.currentPage = pageID
 
 	// Handle data passing to the new page
-	if msg.Data != nil && (pageID == "stats" || pageID == "tickets" || pageID == "calendar" || pageID == "logging") {
-		shared.LogErrorf("TUI_NAVIGATE", "Passing data to %s page", string(pageID))
-		if worklogData, ok := msg.Data.(welcome.WorklogDataMsg); ok {
-			shared.LogErrorf("TUI_NAVIGATE", "Found WorklogDataMsg, setting %s data - TicketLogs: %d, DailyHours: %d, DailyTickets: %d",
-				string(pageID), len(worklogData.TicketLogs), len(worklogData.DailyHours), len(worklogData.DailyTickets))
-			// Send the data message to the target page
-			cmds = append(cmds, func() tea.Msg {
-				return worklogData
-			})
+	if msg.Data != nil {
+		if pageID == "stats" || pageID == "tickets" || pageID == "calendar" || pageID == "logging" {
+			shared.LogErrorf("TUI_NAVIGATE", "Passing data to %s page", string(pageID))
+			if worklogData, ok := msg.Data.(welcome.WorklogDataMsg); ok {
+				shared.LogErrorf("TUI_NAVIGATE", "Found WorklogDataMsg, setting %s data - TicketLogs: %d, DailyHours: %d, DailyTickets: %d",
+					string(pageID), len(worklogData.TicketLogs), len(worklogData.DailyHours), len(worklogData.DailyTickets))
+				// Send the data message to the target page
+				cmds = append(cmds, func() tea.Msg {
+					return worklogData
+				})
+			}
+		} else if pageID == "daydetails" {
+			shared.LogErrorf("TUI_NAVIGATE", "Passing data to daydetails page")
+			if dayData, ok := msg.Data.(daydetails.DayDetailsData); ok {
+				shared.LogErrorf("TUI_NAVIGATE", "Found DayDetailsData for date: %s", dayData.Date.Format("2006-01-02"))
+				// Send the data message to the daydetails page
+				cmds = append(cmds, func() tea.Msg {
+					return dayData
+				})
+			}
 		}
 	}
 
@@ -322,23 +299,10 @@ func (a *appModel) View() tea.View {
 	layers := []*lipgloss.Layer{
 		lipgloss.NewLayer(appView),
 	}
-	if a.dialog.HasDialogs() {
-		layers = append(
-			layers,
-			a.dialog.GetLayers()...,
-		)
-	}
 
 	var cursor *tea.Cursor
 	if v, ok := page.(util.Cursor); ok {
 		cursor = v.Cursor()
-	}
-	activeView := a.dialog.ActiveModel()
-	if activeView != nil {
-		cursor = nil // Reset cursor if a dialog is active unless it implements util.Cursor
-		if v, ok := activeView.(util.Cursor); ok {
-			cursor = v.Cursor()
-		}
 	}
 
 	canvas := lipgloss.NewCanvas(
@@ -371,6 +335,9 @@ func New(app *app.App) tea.Model {
 	worklogPage := worklog.New(app)
 	shared.LogErrorf("TUI_NEW", "Worklog page created")
 
+	dayDetailsPage := daydetails.New(app)
+	shared.LogErrorf("TUI_NEW", "Day details page created")
+
 	keyMap := DefaultKeyMap()
 	keyMap.pageBindings = welcomePage.Bindings()
 	shared.LogErrorf("TUI_NEW", "Key mappings configured")
@@ -383,15 +350,14 @@ func New(app *app.App) tea.Model {
 		keyMap:      keyMap,
 
 		pages: map[page.PageID]util.Model{
-			welcome.WelcomePageID:   welcomePage,
-			stats.StatsPageID:       statsPage,
-			calendar.CalendarPageID: calendarPage,
-			logging.LoggingPageID:   loggingPage,
-			tickets.TicketsPageID:   ticketsPage,
-			worklog.WorklogPageID:   worklogPage,
+			welcome.WelcomePageID:       welcomePage,
+			stats.StatsPageID:           statsPage,
+			calendar.CalendarPageID:     calendarPage,
+			logging.LoggingPageID:       loggingPage,
+			tickets.TicketsPageID:       ticketsPage,
+			worklog.WorklogPageID:       worklogPage,
+			daydetails.DayDetailsPageID: dayDetailsPage,
 		},
-
-		dialog: dialogs.NewDialogCmp(),
 	}
 
 	shared.LogErrorf("TUI_NEW", "TUI application model created successfully with page: %s", string(welcome.WelcomePageID))

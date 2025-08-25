@@ -11,6 +11,7 @@ import (
 	"LogS/internal/tui/components/core/layout"
 	"LogS/internal/tui/components/logo"
 	"LogS/internal/tui/page"
+	"LogS/internal/tui/page/daydetails"
 	"LogS/internal/tui/page/welcome"
 	"LogS/internal/tui/styles"
 	"LogS/internal/tui/util"
@@ -49,9 +50,12 @@ type calendarPage struct {
 	selectedMonth int
 	selectedDay   int
 	today         time.Time
+	dayNavigation bool // Whether we're navigating days within a month
 
 	// Data
-	dailyHours map[string]float64 // Date string -> hours logged
+	dailyHours   map[string]float64               // Date string -> hours logged
+	dailyTickets map[string][]string              // Date string -> ticket keys
+	ticketLogs   map[string]*shared.TicketWorklog // Ticket key -> worklog data
 }
 
 func New(app *app.App) CalendarPage {
@@ -65,7 +69,10 @@ func New(app *app.App) CalendarPage {
 		selectedMonth: int(now.Month()),
 		selectedDay:   now.Day(),
 		today:         now,
+		dayNavigation: true, // Start in day navigation mode by default
 		dailyHours:    make(map[string]float64),
+		dailyTickets:  make(map[string][]string),
+		ticketLogs:    make(map[string]*shared.TicketWorklog),
 	}
 }
 
@@ -80,7 +87,7 @@ func (p *calendarPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case welcome.WorklogDataMsg:
 		shared.LogErrorf("CALENDAR_UPDATE", "Received WorklogDataMsg")
-		p.SetWorklogData(msg.DailyHours)
+		p.SetWorklogData(msg.DailyHours, msg.DailyTickets, msg.TicketLogs)
 		return p, nil
 
 	case tea.WindowSizeMsg:
@@ -90,51 +97,87 @@ func (p *calendarPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyPressMsg:
 		shared.LogErrorf("CALENDAR_UPDATE", "Key press: %s", msg.String())
 		switch {
+		case msg.String() == "enter":
+			// Navigate to day details page for selected day
+			selectedDate := time.Date(p.currentYear, time.Month(p.selectedMonth), p.selectedDay, 0, 0, 0, 0, time.Local)
+			return p, p.navigateToDayDetails(selectedDate)
+
 		case key.Matches(msg, p.keyMap.Up):
-			p.selectedMonth--
-			if p.selectedMonth < 1 {
-				p.selectedMonth = 12
-				p.currentYear--
+			if p.dayNavigation {
+				p.selectedDay -= 7 // Move up one week
+				p.adjustDayBounds()
+			} else {
+				p.selectedMonth -= 3 // Move up one row (3 months)
+				if p.selectedMonth < 1 {
+					p.selectedMonth += 12
+					p.currentYear--
+				}
 			}
 			return p, nil
+
 		case key.Matches(msg, p.keyMap.Down):
-			p.selectedMonth++
-			if p.selectedMonth > 12 {
-				p.selectedMonth = 1
-				p.currentYear++
+			if p.dayNavigation {
+				p.selectedDay += 7 // Move down one week
+				p.adjustDayBounds()
+			} else {
+				p.selectedMonth += 3 // Move down one row (3 months)
+				if p.selectedMonth > 12 {
+					p.selectedMonth -= 12
+					p.currentYear++
+				}
 			}
 			return p, nil
+
 		case key.Matches(msg, p.keyMap.Left):
-			p.selectedMonth--
-			if p.selectedMonth < 1 {
-				p.selectedMonth = 12
-				p.currentYear--
+			if p.dayNavigation {
+				p.selectedDay--
+				p.adjustDayBounds()
+			} else {
+				p.selectedMonth--
+				if p.selectedMonth < 1 {
+					p.selectedMonth = 12
+					p.currentYear--
+				}
 			}
 			return p, nil
+
 		case key.Matches(msg, p.keyMap.Right):
-			p.selectedMonth++
-			if p.selectedMonth > 12 {
-				p.selectedMonth = 1
-				p.currentYear++
+			if p.dayNavigation {
+				p.selectedDay++
+				p.adjustDayBounds()
+			} else {
+				p.selectedMonth++
+				if p.selectedMonth > 12 {
+					p.selectedMonth = 1
+					p.currentYear++
+				}
 			}
 			return p, nil
+
 		case key.Matches(msg, p.keyMap.PrevYear):
 			p.currentYear--
+			p.dayNavigation = false
 			return p, nil
+
 		case key.Matches(msg, p.keyMap.NextYear):
 			p.currentYear++
+			p.dayNavigation = false
 			return p, nil
+
 		case key.Matches(msg, p.keyMap.Today):
 			p.currentYear = p.today.Year()
 			p.selectedMonth = int(p.today.Month())
 			p.selectedDay = p.today.Day()
+			p.dayNavigation = true // Keep day navigation mode
 			return p, nil
+
 		case key.Matches(msg, p.keyMap.Back):
 			shared.LogErrorf("CALENDAR_UPDATE", "Back key pressed")
 			// Navigate back to stats page
 			return p, func() tea.Msg {
 				return page.PageChangeMsg{ID: "stats"}
 			}
+
 		case key.Matches(msg, p.keyMap.Quit):
 			shared.LogErrorf("CALENDAR_UPDATE", "Quit key pressed")
 			return p, tea.Quit
@@ -336,7 +379,10 @@ func (p *calendarPage) renderMonthDays(t *styles.Theme, year, month int, width i
 		dayStatus := p.getDayStatus(dayDate)
 
 		dayStr := strconv.Itoa(day)
-		dayStyle := p.getDayStyle(t, dayStatus, dayWidth)
+
+		// Check if this day is selected in day navigation mode
+		isSelected := p.dayNavigation && month == p.selectedMonth && day == p.selectedDay
+		dayStyle := p.getDayStyleWithSelection(t, dayStatus, dayWidth, isSelected)
 
 		styledDay := dayStyle.Render(dayStr)
 		currentWeek = append(currentWeek, styledDay)
@@ -395,7 +441,8 @@ func (p *calendarPage) getDayStyle(t *styles.Theme, status DayStatus, width int)
 
 	switch status {
 	case DayToday:
-		return baseStyle.Background(t.Primary).Foreground(t.White).Bold(true)
+		// Today gets a secondary color (green) to distinguish from selected
+		return baseStyle.Background(t.Secondary).Foreground(t.White).Bold(true)
 	case DayLogged:
 		return baseStyle.Background(t.Success).Foreground(t.White)
 	case DayNoLog:
@@ -409,13 +456,25 @@ func (p *calendarPage) getDayStyle(t *styles.Theme, status DayStatus, width int)
 	}
 }
 
+func (p *calendarPage) getDayStyleWithSelection(t *styles.Theme, status DayStatus, width int, isSelected bool) lipgloss.Style {
+	if isSelected {
+		// Selected day uses primary color (blue) without border
+		baseStyle := t.S().Base.Width(width).Align(lipgloss.Center)
+		return baseStyle.Background(t.Primary).Foreground(t.White).Bold(true)
+	}
+
+	// Non-selected days use their status-based styling
+	return p.getDayStyle(t, status, width)
+}
+
 func (p *calendarPage) renderLegend(t *styles.Theme) string {
 	legendItems := []struct {
 		label string
 		color color.Color
 		bg    color.Color
 	}{
-		{"Today", t.White, t.Primary},
+		{"Selected", t.White, t.Primary},
+		{"Today", t.White, t.Secondary},
 		{"Logged", t.White, t.Success},
 		{"Not Logged", t.White, t.Error},
 		{"Weekend", t.FgMuted, t.BgSubtle},
@@ -449,9 +508,88 @@ func (p *calendarPage) SetSize(width, height int) tea.Cmd {
 	return nil
 }
 
-func (p *calendarPage) SetWorklogData(dailyHours map[string]float64) {
-	shared.LogErrorf("CALENDAR_DATA", "Setting worklog data - DailyHours: %d", len(dailyHours))
+func (p *calendarPage) SetWorklogData(dailyHours map[string]float64, dailyTickets map[string][]string, ticketLogs map[string]*shared.TicketWorklog) {
+	shared.LogErrorf("CALENDAR_DATA", "Setting worklog data - DailyHours: %d, DailyTickets: %d, TicketLogs: %d",
+		len(dailyHours), len(dailyTickets), len(ticketLogs))
 	p.dailyHours = dailyHours
+	p.dailyTickets = dailyTickets
+	p.ticketLogs = ticketLogs
+}
+
+func (p *calendarPage) adjustDayBounds() {
+	// Get the last day of the selected month
+	lastDay := time.Date(p.currentYear, time.Month(p.selectedMonth+1), 0, 0, 0, 0, 0, time.Local).Day()
+
+	if p.selectedDay < 1 {
+		// Go to previous month
+		p.selectedMonth--
+		if p.selectedMonth < 1 {
+			p.selectedMonth = 12
+			p.currentYear--
+		}
+		// Set to last day of previous month
+		lastDayPrevMonth := time.Date(p.currentYear, time.Month(p.selectedMonth+1), 0, 0, 0, 0, 0, time.Local).Day()
+		p.selectedDay = lastDayPrevMonth
+	} else if p.selectedDay > lastDay {
+		// Go to next month
+		p.selectedMonth++
+		if p.selectedMonth > 12 {
+			p.selectedMonth = 1
+			p.currentYear++
+		}
+		p.selectedDay = 1
+	}
+}
+
+func (p *calendarPage) navigateToDayDetails(date time.Time) tea.Cmd {
+	return func() tea.Msg {
+		// Prepare day details data
+		dateStr := date.Format("2006-01-02")
+
+		// Build worklog entries for this day from the full worklog data
+		var worklogEntries []daydetails.WorklogEntry
+
+		// Get tickets for this day
+		if tickets, exists := p.dailyTickets[dateStr]; exists {
+			for _, ticketKey := range tickets {
+				if ticketLog, exists := p.ticketLogs[ticketKey]; exists {
+					// Find worklogs for this specific date
+					for _, worklog := range ticketLog.Logs {
+						// Parse the worklog start time to get the date
+						if startTime, err := time.Parse(shared.WorklogDateFormat, worklog.Started); err == nil {
+							worklogDate := startTime.Format("2006-01-02")
+							if worklogDate == dateStr {
+								hours := float64(worklog.TimeSpentSeconds) / shared.SecondsPerHour
+								worklogEntries = append(worklogEntries, daydetails.WorklogEntry{
+									TicketKey: ticketKey,
+									WorklogID: worklog.ID,
+									Hours:     hours,
+									Comment:   worklog.Comment,
+									Summary:   ticketLog.Summary,
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Calculate total hours for this day
+		totalHours := 0.0
+		if hours, exists := p.dailyHours[dateStr]; exists {
+			totalHours = hours
+		}
+
+		// Navigate to day details page with the data
+		return page.PageChangeMsg{
+			ID: "daydetails",
+			Data: daydetails.DayDetailsData{
+				Date:           date,
+				WorklogEntries: worklogEntries,
+				TotalHours:     totalHours,
+			},
+		}
+	}
 }
 
 func (p *calendarPage) Bindings() []key.Binding {
@@ -476,6 +614,10 @@ func (p *calendarPage) Help() help.KeyMap {
 		key.NewBinding(
 			key.WithKeys("↑/↓/←/→"),
 			key.WithHelp("arrows", "navigate"),
+		),
+		key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "view day details"),
 		),
 		key.NewBinding(
 			key.WithKeys("[/]"),
