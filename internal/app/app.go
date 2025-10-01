@@ -67,7 +67,6 @@ func (app *App) JiraClient() *jira.JiraClient {
 	return app.jiraClient
 }
 
-
 // Shutdown performs a graceful shutdown of the application.
 func (app *App) Shutdown() {
 	app.mutex.Lock()

@@ -267,7 +267,7 @@ func logToCustomTickets(ws *jira.WorklogService, missingDays []time.Time) {
 		Run()
 
 	if spinnerErr != nil || err != nil {
-		huh.NewNote().
+		_ = huh.NewNote().
 			Title("❌ Error").
 			Description(fmt.Sprintf("Failed to load tickets: %v", err)).
 			Run()
@@ -358,7 +358,7 @@ func logToCustomTickets(ws *jira.WorklogService, missingDays []time.Time) {
 		}
 
 		// Get hours and description
-		var hoursStr string = "8"
+		var hoursStr = "8"
 		form := huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
@@ -628,16 +628,4 @@ func createProgressBar(percentage float64) string {
 		BorderForeground(lipgloss.Color("#666"))
 
 	return borderStyle.Render(filled + empty)
-}
-
-func formatDuration(seconds int) string {
-	hours := seconds / 3600
-	minutes := (seconds % 3600) / 60
-
-	if hours > 0 && minutes > 0 {
-		return fmt.Sprintf("%dh %dm", hours, minutes)
-	} else if hours > 0 {
-		return fmt.Sprintf("%dh", hours)
-	}
-	return fmt.Sprintf("%dm", minutes)
 }

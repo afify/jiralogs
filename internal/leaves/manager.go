@@ -36,7 +36,9 @@ func (m *Manager) loadLeaves() {
 		// No leaves file, that's OK
 		return
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
