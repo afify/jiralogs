@@ -7,7 +7,6 @@ import (
 	"LogS/internal/config"
 	"LogS/jira"
 	"LogS/shared"
-	tea "github.com/charmbracelet/bubbletea/v2"
 )
 
 type App struct {
@@ -19,7 +18,6 @@ type App struct {
 
 	// Application context
 	globalCtx context.Context
-	events    chan tea.Msg
 
 	// For cleanup
 	cleanupFuncs []func()
@@ -31,7 +29,6 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	app := &App{
 		globalCtx:    ctx,
 		config:       cfg,
-		events:       make(chan tea.Msg, 100),
 		cleanupFuncs: []func(){},
 	}
 
@@ -70,33 +67,6 @@ func (app *App) JiraClient() *jira.JiraClient {
 	return app.jiraClient
 }
 
-// Subscribe sends events to the TUI as tea.Msgs.
-func (app *App) Subscribe(program *tea.Program) {
-	// Simple event subscription for jiralogs
-	// This is a simplified version compared to Crush
-	go func() {
-		for {
-			select {
-			case <-app.globalCtx.Done():
-				return
-			case msg, ok := <-app.events:
-				if !ok {
-					return
-				}
-				program.Send(msg)
-			}
-		}
-	}()
-}
-
-// SendEvent sends an event to the TUI
-func (app *App) SendEvent(msg tea.Msg) {
-	select {
-	case app.events <- msg:
-	default:
-		// Drop message if channel is full
-	}
-}
 
 // Shutdown performs a graceful shutdown of the application.
 func (app *App) Shutdown() {
@@ -109,7 +79,4 @@ func (app *App) Shutdown() {
 			cleanup()
 		}
 	}
-
-	// Close events channel
-	close(app.events)
 }

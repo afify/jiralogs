@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"LogS/internal/leaves"
 	"LogS/shared"
 )
 
@@ -44,8 +45,9 @@ type WorklogUpdatedMsg struct {
 }
 
 type WorklogService struct {
-	client *JiraClient
-	user   *shared.User
+	client       *JiraClient
+	user         *shared.User
+	leaveManager *leaves.Manager
 }
 
 func NewWorklogService(client *JiraClient) (*WorklogService, error) {
@@ -56,14 +58,37 @@ func NewWorklogService(client *JiraClient) (*WorklogService, error) {
 	}
 
 	return &WorklogService{
-		client: client,
-		user:   user,
+		client:       client,
+		user:         user,
+		leaveManager: leaves.NewManager(),
 	}, nil
 }
 
 func (w *WorklogService) IsWeekend(t time.Time) bool {
 	day := t.Weekday()
 	return day == time.Friday || day == time.Saturday
+}
+
+func (w *WorklogService) IsLeaveDay(t time.Time) bool {
+	return w.leaveManager.IsLeaveDay(t)
+}
+
+func (w *WorklogService) ShouldSkipDay(t time.Time) bool {
+	return w.IsWeekend(t) || w.IsLeaveDay(t)
+}
+
+func (w *WorklogService) LogWork(ticketKey string, hours float64, description string, date time.Time) error {
+	return w.client.AddWorklog(ticketKey, date.Format("2006-01-02"), hours, description)
+}
+
+func (w *WorklogService) GetMyTickets() ([]shared.Issue, error) {
+	jql := fmt.Sprintf("(assignee = currentUser()) OR (worklogAuthor = '%s') ORDER BY updated DESC", w.user.AccountID)
+	return w.client.SearchIssues(jql)
+}
+
+func (w *WorklogService) GetMyRecentTickets() ([]shared.Issue, error) {
+	jql := fmt.Sprintf("worklogAuthor = '%s' AND worklogDate >= -30d ORDER BY updated DESC", w.user.AccountID)
+	return w.client.SearchIssues(jql)
 }
 
 func contains(slice []string, item string) bool {

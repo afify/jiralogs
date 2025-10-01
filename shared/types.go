@@ -64,6 +64,7 @@ const (
 	DayPartial
 	DayMissing
 	DayWeekend
+	DayLeave
 )
 
 type DailyReport struct {
@@ -109,6 +110,19 @@ type TicketLogData struct {
 	Total   float64
 	LastLog string
 	Logs    []DayLog
+}
+
+// TicketWithMatch represents a ticket with fuzzy search match indexes
+type TicketWithMatch struct {
+	Issue        Issue
+	MatchIndexes []int
+	LoggedHours  float64
+	WorklogData  *TicketWorklog
+}
+
+// AllTicketsLoadedMsg message for when all tickets are loaded from JIRA
+type AllTicketsLoadedMsg struct {
+	Tickets []Issue
 }
 
 type SummaryData struct {

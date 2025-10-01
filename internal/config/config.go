@@ -21,6 +21,10 @@ type Config struct {
 	JiraBaseURL string
 	JiraEmail   string
 	JiraToken   string
+
+	// BambooHR Configuration
+	BambooSubdomain string
+	BambooAPIKey    string
 }
 
 // New creates a new configuration instance
@@ -40,18 +44,21 @@ func New() *Config {
 	workingDir, _ := os.Getwd()
 
 	cfg := &Config{
-		workingDir:  workingDir,
-		dataDir:     filepath.Join(homeDir, defaultDataDirectory),
-		JiraBaseURL: os.Getenv("JIRA_BASE_URL"),
-		JiraEmail:   os.Getenv("JIRA_EMAIL"),
-		JiraToken:   os.Getenv("JIRA_API_TOKEN"),
+		workingDir:      workingDir,
+		dataDir:         filepath.Join(homeDir, defaultDataDirectory),
+		JiraBaseURL:     os.Getenv("JIRA_BASE_URL"),
+		JiraEmail:       os.Getenv("JIRA_EMAIL"),
+		JiraToken:       os.Getenv("JIRA_API_TOKEN"),
+		BambooSubdomain: os.Getenv("BAMBOO_SUBDOMAIN"),
+		BambooAPIKey:    os.Getenv("BAMBOO_API_KEY"),
 	}
 
 	// Show helpful message if configuration is missing
 	if !cfg.IsConfigured() {
 		if !envFileExists {
 			printEnvSetupHelp()
-		} else {
+		} else if !cfg.HasJiraConfig() {
+			// Only show missing config help if JIRA is not configured
 			printMissingConfigHelp(cfg)
 		}
 	}
@@ -72,9 +79,19 @@ func (c *Config) DataDir() string {
 	return c.dataDir
 }
 
-// IsConfigured returns true if the basic JIRA configuration is present
+// IsConfigured returns true if at least JIRA configuration is present
 func (c *Config) IsConfigured() bool {
+	return c.HasJiraConfig()
+}
+
+// HasJiraConfig returns true if JIRA configuration is present
+func (c *Config) HasJiraConfig() bool {
 	return c.JiraBaseURL != "" && c.JiraEmail != "" && c.JiraToken != ""
+}
+
+// HasBambooConfig returns true if BambooHR configuration is present
+func (c *Config) HasBambooConfig() bool {
+	return c.BambooSubdomain != "" && c.BambooAPIKey != ""
 }
 
 // printEnvSetupHelp prints instructions for setting up the .env file
@@ -88,17 +105,30 @@ func printEnvSetupHelp() {
 	println("1. Create a JIRA API token:")
 	println("   🔗 https://id.atlassian.com/manage-profile/security/api-tokens")
 	println()
-	println("2. Create a .env file in the current directory with:")
+	println("2. (Optional) Create a BambooHR API key:")
+	println("   🔗 Login to BambooHR > My Info > API Keys")
 	println()
+	println("3. Create a .env file in the current directory with:")
+	println()
+	println("   # JIRA Configuration")
 	println("   JIRA_BASE_URL=https://your-company.atlassian.net")
 	println("   JIRA_EMAIL=your.email@company.com")
 	println("   JIRA_API_TOKEN=your_api_token_here")
 	println()
+	println("   # BambooHR Configuration (Optional)")
+	println("   BAMBOO_SUBDOMAIN=your-company")
+	println("   BAMBOO_API_KEY=your_bamboo_api_key")
+	println()
 	println("Example .env file:")
 	println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	println("# JIRA Configuration")
 	println("JIRA_BASE_URL=https://acme.atlassian.net")
 	println("JIRA_EMAIL=john.doe@acme.com")
 	println("JIRA_API_TOKEN=ATATT3xFfGF0abcdef123456...")
+	println()
+	println("# BambooHR Configuration (Optional)")
+	println("BAMBOO_SUBDOMAIN=acme")
+	println("BAMBOO_API_KEY=abc123def456...")
 	println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	println()
 }
@@ -106,7 +136,7 @@ func printEnvSetupHelp() {
 // printMissingConfigHelp prints which specific configuration values are missing
 func printMissingConfigHelp(cfg *Config) {
 	println("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	println("⚠️  Incomplete JIRA Configuration")
+	println("⚠️  Incomplete Configuration")
 	println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	println()
 	println("The following environment variables are missing or empty:")
@@ -127,6 +157,18 @@ func printMissingConfigHelp(cfg *Config) {
 	if cfg.JiraToken == "" {
 		println("  ❌ JIRA_API_TOKEN - Your JIRA API token")
 		println("     Create one at: https://id.atlassian.com/manage-profile/security/api-tokens")
+		println()
+	}
+
+	if cfg.BambooSubdomain == "" {
+		println("  ❌ BAMBOO_SUBDOMAIN - Your BambooHR subdomain")
+		println("     Example: your-company (from https://your-company.bamboohr.com)")
+		println()
+	}
+
+	if cfg.BambooAPIKey == "" {
+		println("  ❌ BAMBOO_API_KEY - Your BambooHR API key")
+		println("     Get it from: BambooHR > My Info > API Keys")
 		println()
 	}
 

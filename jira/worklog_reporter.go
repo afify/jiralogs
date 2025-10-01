@@ -18,6 +18,8 @@ func (w *WorklogService) GenerateDailyReports(period shared.Period, dailyHours m
 
 		if w.IsWeekend(d) {
 			report.Status = shared.DayWeekend
+		} else if w.IsLeaveDay(d) {
+			report.Status = shared.DayLeave
 		} else if report.Hours >= shared.RequiredHoursPerDay {
 			report.Status = shared.DayCompliant
 		} else if report.Hours > shared.ZeroHours {
@@ -40,7 +42,7 @@ func (w *WorklogService) GenerateSummary(period shared.Period, reports []shared.
 	}
 
 	for _, report := range reports {
-		if report.Status == shared.DayWeekend {
+		if report.Status == shared.DayWeekend || report.Status == shared.DayLeave {
 			continue
 		}
 
