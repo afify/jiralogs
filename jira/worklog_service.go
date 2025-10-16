@@ -1,10 +1,12 @@
 package jira
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
-	"LogS/internal/leaves"
+	"LogS/leaves"
 	"LogS/shared"
 )
 
@@ -51,7 +53,7 @@ type WorklogService struct {
 }
 
 func NewWorklogService(client *JiraClient) (*WorklogService, error) {
-	user, err := client.GetCurrentUser()
+	user, err := getCachedOrFetchUser(client)
 	if err != nil {
 		shared.LogError("NewWorklogService", err)
 		return nil, fmt.Errorf("initializing worklog service: %w", err)
@@ -62,6 +64,68 @@ func NewWorklogService(client *JiraClient) (*WorklogService, error) {
 		user:         user,
 		leaveManager: leaves.NewManager(),
 	}, nil
+}
+
+// getCachedOrFetchUser tries to load user from cache, fetches if not found
+func getCachedOrFetchUser(client *JiraClient) (*shared.User, error) {
+	// Try to load from cache first
+	if user := loadCachedUser(); user != nil {
+		shared.LogErrorf("USER_CACHE", "Using cached user: %s", user.AccountID)
+		return user, nil
+	}
+
+	// Cache miss, fetch from API with spinner
+	shared.LogErrorf("USER_CACHE", "Cache miss, fetching user from API")
+	return fetchUserWithSpinner(client)
+}
+
+// fetchUserWithSpinner fetches user data with a spinner
+func fetchUserWithSpinner(client *JiraClient) (*shared.User, error) {
+	// Import spinner - we'll need to add this import
+	// For now, let's fetch without spinner and add it in the main function
+	user, err := client.GetCurrentUser()
+	if err != nil {
+		return nil, err
+	}
+
+	// Save to cache
+	if err := saveCachedUser(user); err != nil {
+		shared.LogError("USER_CACHE", err)
+		// Don't fail if we can't cache, just continue
+	}
+
+	return user, nil
+}
+
+// IsCachedUserAvailable checks if user is cached without loading it
+func IsCachedUserAvailable() bool {
+	_, err := os.Stat(".id")
+	return err == nil
+}
+
+// loadCachedUser loads user info from .id file
+func loadCachedUser() *shared.User {
+	data, err := os.ReadFile(".id")
+	if err != nil {
+		return nil
+	}
+
+	var user shared.User
+	if err := json.Unmarshal(data, &user); err != nil {
+		return nil
+	}
+
+	return &user
+}
+
+// saveCachedUser saves user info to .id file
+func saveCachedUser(user *shared.User) error {
+	data, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(".id", data, 0644)
 }
 
 func (w *WorklogService) IsWeekend(t time.Time) bool {

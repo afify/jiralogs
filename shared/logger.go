@@ -38,3 +38,18 @@ func LogErrorf(context string, format string, args ...interface{}) {
 		errorLogger.Printf("[%s] %s: %s", time.Now().Format(DateTimeFormat), context, message)
 	}
 }
+
+// StatusBar displays a clean status message for operations
+func StatusBar(message string) {
+	fmt.Print(message + "...")
+}
+
+// StatusComplete marks the status as successful
+func StatusComplete() {
+	fmt.Println(" ✓")
+}
+
+// StatusFailed marks the status as failed
+func StatusFailed() {
+	fmt.Println(" ✗")
+}

@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"LogS/internal/app"
-	"LogS/internal/config"
+	"LogS/app"
+	"LogS/config"
 	"LogS/jira"
 	"LogS/shared"
 
@@ -487,38 +487,28 @@ func showDashboard(ws *jira.WorklogService, cfg *config.Config) {
 	fmt.Println(headerStyle.Render("LogS"))
 	fmt.Println(userInfoStyle.Render(fmt.Sprintf("%s | %s", cfg.JiraEmail, cfg.JiraBaseURL)))
 
-	// Use spinner to load stats
+	// Load worklog stats with clean status
 	var dailyHours map[string]float64
 	var err error
 
-	action := func() {
-		now := time.Now()
-		startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
-		period := shared.Period{Start: startOfYear, End: now}
+	shared.StatusBar("📊 Fetching worklog data from JIRA API")
 
-		_, dailyHours, _, err = ws.FetchWorklogs(period)
-	}
+	now := time.Now()
+	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+	period := shared.Period{Start: startOfYear, End: now}
 
-	spinnerErr := spinner.New().
-		Title("🔄 Loading tickets...").
-		Action(action).
-		Run()
+	_, dailyHours, _, err = ws.FetchWorklogs(period)
 
-	if spinnerErr != nil || err != nil {
-		errorStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF5F87")).
-			Bold(true).
-			Padding(1).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#FF5F87"))
-
-		fmt.Println(errorStyle.Render(fmt.Sprintf("Error loading stats: %v", err)))
+	if err == nil {
+		shared.StatusComplete()
+	} else {
+		shared.StatusFailed()
+		fmt.Printf("Error loading worklog data: %v\n", err)
 		return
 	}
 
 	// Calculate statistics
-	now := time.Now()
-	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+	// Reuse the same now and startOfYear variables from above
 
 	totalLoggedHours := 0.0
 	daysLogged := 0
