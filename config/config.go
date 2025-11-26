@@ -2,21 +2,13 @@ package config
 
 import (
 	"os"
-	"path/filepath"
 
 	"LogS/shared"
+
 	"github.com/joho/godotenv"
 )
 
-const (
-	appName              = "jiralogs"
-	defaultDataDirectory = ".jiralogs"
-)
-
 type Config struct {
-	workingDir string
-	dataDir    string
-
 	// JIRA Configuration
 	JiraBaseURL string
 	JiraEmail   string
@@ -36,12 +28,7 @@ func New() *Config {
 		shared.LogErrorf("CONFIG_INIT", ".env file loaded successfully")
 	}
 
-	homeDir, _ := os.UserHomeDir()
-	workingDir, _ := os.Getwd()
-
 	cfg := &Config{
-		workingDir:  workingDir,
-		dataDir:     filepath.Join(homeDir, defaultDataDirectory),
 		JiraBaseURL: os.Getenv("JIRA_BASE_URL"),
 		JiraEmail:   os.Getenv("JIRA_EMAIL"),
 		JiraToken:   os.Getenv("JIRA_API_TOKEN"),
@@ -60,16 +47,6 @@ func New() *Config {
 		cfg.JiraBaseURL, cfg.JiraEmail, cfg.JiraToken != "")
 
 	return cfg
-}
-
-// WorkingDir returns the current working directory
-func (c *Config) WorkingDir() string {
-	return c.workingDir
-}
-
-// DataDir returns the data directory path
-func (c *Config) DataDir() string {
-	return c.dataDir
 }
 
 // IsConfigured returns true if JIRA configuration is present

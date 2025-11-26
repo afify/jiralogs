@@ -12,6 +12,10 @@ build:
 	@go build .
 
 check:
+	@printf "$(CYAN)*** goimports…$(NC)\n"
+	@goimports -w .
+	@printf "$(CYAN)*** deadcode…$(NC)\n"
+	@$(HOME)/go/bin/deadcode ./...
 	@printf "$(CYAN)*** go fmt…$(NC)\n"
 	@go fmt ./...
 	@printf "$(CYAN)*** go update…$(NC)\n"

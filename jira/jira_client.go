@@ -52,7 +52,3 @@ func (j *JiraClient) request(method, endpoint string, body []byte) ([]byte, erro
 
 	return data, nil
 }
-
-func (j *JiraClient) GetConfiguredEmail() string {
-	return j.email
-}

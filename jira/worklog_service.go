@@ -150,11 +150,6 @@ func (w *WorklogService) GetMyTickets() ([]shared.Issue, error) {
 	return w.client.SearchIssues(jql)
 }
 
-func (w *WorklogService) GetMyRecentTickets() ([]shared.Issue, error) {
-	jql := fmt.Sprintf("worklogAuthor = '%s' AND worklogDate >= -30d ORDER BY updated DESC", w.user.AccountID)
-	return w.client.SearchIssues(jql)
-}
-
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {

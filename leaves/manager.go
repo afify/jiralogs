@@ -57,21 +57,3 @@ func (m *Manager) loadLeaves() {
 func (m *Manager) IsLeaveDay(t time.Time) bool {
 	return m.leaveDays[t.Format("2006-01-02")]
 }
-
-func (m *Manager) AddLeave(date time.Time) {
-	m.leaveDays[date.Format("2006-01-02")] = true
-}
-
-func (m *Manager) RemoveLeave(date time.Time) {
-	delete(m.leaveDays, date.Format("2006-01-02"))
-}
-
-func (m *Manager) GetLeaves() []time.Time {
-	var leaves []time.Time
-	for dateStr := range m.leaveDays {
-		if t, err := time.Parse("2006-01-02", dateStr); err == nil {
-			leaves = append(leaves, t)
-		}
-	}
-	return leaves
-}

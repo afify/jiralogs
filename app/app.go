@@ -67,11 +67,6 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 	return app, nil
 }
 
-// Config returns the application configuration.
-func (app *App) Config() *config.Config {
-	return app.config
-}
-
 // WorklogService returns the JIRA worklog service.
 func (app *App) WorklogService() *jira.WorklogService {
 	return app.worklogService

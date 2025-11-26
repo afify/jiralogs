@@ -121,7 +121,7 @@ func main() {
 	case "single":
 		logToSingleTicket(ws, missingDays)
 	case "custom":
-		logToCustomTickets(ws, missingDays)
+		logToCustomTickets(ws, app.JiraClient(), missingDays)
 	case "exit":
 		fmt.Println("Exiting...")
 	}
@@ -249,7 +249,7 @@ type DayTicketAssignment struct {
 	Description string
 }
 
-func logToCustomTickets(ws *jira.WorklogService, missingDays []time.Time) {
+func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, missingDays []time.Time) {
 	fmt.Println("\nAssign tickets to missing worklog days")
 	fmt.Println("======================================")
 
@@ -308,6 +308,7 @@ func logToCustomTickets(ws *jira.WorklogService, missingDays []time.Time) {
 
 		// Create ticket options
 		ticketOptions := []huh.Option[string]{
+			huh.NewOption("➕ Create new ticket", "create"),
 			huh.NewOption("📝 Enter custom ticket", "custom"),
 		}
 
@@ -335,6 +336,18 @@ func logToCustomTickets(ws *jira.WorklogService, missingDays []time.Time) {
 		if err != nil {
 			day.TicketKey = "SKIP"
 			continue
+		}
+
+		// Handle create new ticket
+		if selectedTicket == "create" {
+			createdTicket, createdTitle, err := createNewTicket(jiraClient)
+			if err != nil {
+				fmt.Printf("❌ Error creating ticket: %v\n", err)
+				day.TicketKey = "SKIP"
+				continue
+			}
+			selectedTicket = createdTicket
+			day.TicketTitle = createdTitle
 		}
 
 		// Handle custom ticket
