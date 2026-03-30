@@ -130,9 +130,9 @@ func main() {
 func findMissingWorklogDays(ws *jira.WorklogService) []time.Time {
 	var missingDays []time.Time
 
-	// Check last 30 days
+	// Check from start of year to today
 	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -30)
+	startDate := time.Date(endDate.Year(), 1, 1, 0, 0, 0, 0, endDate.Location())
 
 	period := shared.Period{Start: startDate, End: endDate}
 

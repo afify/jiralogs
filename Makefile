@@ -16,6 +16,8 @@ check:
 	@goimports -w .
 	@printf "$(CYAN)*** deadcode…$(NC)\n"
 	@$(HOME)/go/bin/deadcode ./...
+	@go mod tidy
+	@go mod vendor
 	@printf "$(CYAN)*** go fmt…$(NC)\n"
 	@go fmt ./...
 	@printf "$(CYAN)*** go update…$(NC)\n"

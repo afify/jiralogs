@@ -30,6 +30,10 @@ func (j *JiraClient) SearchIssues(jql string) ([]shared.Issue, error) {
 		return nil, fmt.Errorf("parsing search response: %w", err)
 	}
 
+	if result.Total > len(result.Issues) {
+		shared.LogErrorf("SearchIssues", "WARNING: JIRA returned %d/%d issues (missing %d)", len(result.Issues), result.Total, result.Total-len(result.Issues))
+	}
+
 	return result.Issues, nil
 }
 
