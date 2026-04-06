@@ -145,8 +145,8 @@ func (w *WorklogService) LogWork(ticketKey string, hours float64, description st
 	return w.client.AddWorklog(ticketKey, date.Format("2006-01-02"), hours, description)
 }
 
-func (w *WorklogService) GetMyTickets() ([]shared.Issue, error) {
-	jql := fmt.Sprintf("(assignee = currentUser()) OR (worklogAuthor = '%s') ORDER BY updated DESC", w.user.AccountID)
+func (w *WorklogService) GetAllTickets() ([]shared.Issue, error) {
+	jql := fmt.Sprintf("(assignee = currentUser()) OR (reporter = currentUser()) OR (worklogAuthor = '%s') ORDER BY updated DESC", w.user.AccountID)
 	return w.client.SearchIssues(jql)
 }
 

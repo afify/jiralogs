@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -16,10 +17,17 @@ import (
 	"LogS/jira"
 	"LogS/shared"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/huh/spinner"
 	"github.com/charmbracelet/lipgloss"
 )
+
+func newKeyMap() *huh.KeyMap {
+	km := huh.NewDefaultKeyMap()
+	km.Quit = key.NewBinding(key.WithKeys("ctrl+c", "esc"))
+	return km
+}
 
 func main() {
 	// Clear terminal
@@ -64,10 +72,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	showDashboard(ws, cfg)
+	// Banner
+	headerStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#FAFAFA")).
+		Background(lipgloss.AdaptiveColor{Light: "#7D56F4", Dark: "#7D56F4"}).
+		Padding(1, 2).
+		Margin(1, 0).
+		Width(60).
+		Align(lipgloss.Center)
 
-	// Find missing worklog days (last 30 days, excluding weekends and leaves)
-	missingDays := findMissingWorklogDays(ws)
+	userInfoStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#666")).
+		Italic(true).
+		Margin(0, 0, 1, 0)
+
+	fmt.Println(headerStyle.Render("LogS"))
+	fmt.Println(userInfoStyle.Render(fmt.Sprintf("%s | %s", cfg.JiraEmail, cfg.JiraBaseURL)))
+
+	// Fetch worklogs once for both dashboard and missing days
+	now := time.Now()
+	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
+	period := shared.Period{Start: startOfYear, End: now}
+
+	shared.StatusBar("📊 Fetching worklog data from JIRA API")
+	_, dailyHours, _, fetchErr := ws.FetchWorklogs(period)
+	if fetchErr != nil {
+		shared.StatusFailed()
+		fmt.Printf("Error loading worklog data: %v\n", fetchErr)
+		os.Exit(1)
+	}
+	shared.StatusComplete()
+
+	showDashboard(ws, dailyHours)
+
+	missingDays := findMissingWorklogDays(ws, dailyHours)
 
 	if len(missingDays) == 0 {
 		fmt.Println("\n✓ All working days have logged time!")
@@ -99,58 +138,50 @@ func main() {
 		fmt.Println(missingStyle.Render(missingContent))
 	}
 
-	// Create options for the select prompt
-	var option string
-	err = huh.NewSelect[string]().
-		Title("What would you like to do?").
-		Options(
-			huh.NewOption("Log missing days to single ticket", "single"),
-			huh.NewOption("Log missing days to custom tickets", "custom"),
-			huh.NewOption("Exit", "exit"),
-		).
-		Value(&option).
-		WithTheme(huh.ThemeCharm()).
-		Run()
+	for {
+		var option string
+		err = huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("What would you like to do?").
+				Options(
+					huh.NewOption("Log missing days to custom tickets", "custom"),
+					huh.NewOption("Log missing days to single ticket", "single"),
+					huh.NewOption("Exit", "exit"),
+				).
+				Value(&option),
+		)).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap()).Run()
 
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		return
-	}
+		if errors.Is(err, huh.ErrUserAborted) {
+			fmt.Println("Exiting...")
+			return
+		}
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
 
-	switch option {
-	case "single":
-		logToSingleTicket(ws, missingDays)
-	case "custom":
-		logToCustomTickets(ws, app.JiraClient(), missingDays)
-	case "exit":
-		fmt.Println("Exiting...")
+		switch option {
+		case "single":
+			logToSingleTicket(ws, missingDays)
+		case "custom":
+			logToCustomTickets(ws, app.JiraClient(), missingDays)
+		case "exit":
+			return
+		}
 	}
 }
 
-func findMissingWorklogDays(ws *jira.WorklogService) []time.Time {
+func findMissingWorklogDays(ws *jira.WorklogService, dailyHours map[string]float64) []time.Time {
 	var missingDays []time.Time
 
-	// Check from start of year to today
 	endDate := time.Now()
 	startDate := time.Date(endDate.Year(), 1, 1, 0, 0, 0, 0, endDate.Location())
 
-	period := shared.Period{Start: startDate, End: endDate}
-
-	// Fetch existing worklogs
-	_, dailyHours, _, err := ws.FetchWorklogs(period)
-	if err != nil {
-		fmt.Printf("Error fetching worklogs: %v\n", err)
-		return missingDays
-	}
-
-	// Check each working day
 	for d := startDate; d.Before(endDate) || d.Equal(endDate); d = d.AddDate(0, 0, 1) {
-		// Skip future dates
 		if d.After(time.Now()) {
 			continue
 		}
 
-		// Skip days we should not log (weekends, leaves)
 		if ws.ShouldSkipDay(d) {
 			continue
 		}
@@ -193,9 +224,12 @@ func logToSingleTicket(ws *jira.WorklogService, missingDays []time.Time) {
 				Placeholder("Working on tasks...").
 				Value(&description),
 		),
-	).WithTheme(huh.ThemeCharm())
+	).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap())
 
 	err := form.Run()
+	if errors.Is(err, huh.ErrUserAborted) {
+		return
+	}
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -212,14 +246,13 @@ func logToSingleTicket(ws *jira.WorklogService, missingDays []time.Time) {
 
 	// Confirm before logging
 	var confirm bool
-	err = huh.NewConfirm().
-		Title(fmt.Sprintf("Log %d hours per day to %s for %d days?", hoursInt, ticket, len(missingDays))).
-		Value(&confirm).
-		WithTheme(huh.ThemeCharm()).
-		Run()
+	err = huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title(fmt.Sprintf("Log %d hours per day to %s for %d days?", hoursInt, ticket, len(missingDays))).
+			Value(&confirm),
+	)).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap()).Run()
 
-	if err != nil || !confirm {
-		fmt.Println("Cancelled.")
+	if errors.Is(err, huh.ErrUserAborted) || !confirm {
 		return
 	}
 
@@ -258,7 +291,7 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 	var err error
 
 	ticketAction := func() {
-		tickets, err = ws.GetMyTickets()
+		tickets, err = ws.GetAllTickets()
 	}
 
 	spinnerErr := spinner.New().
@@ -274,10 +307,7 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 		return
 	}
 
-	// Limit to recent tickets for better UX - more tickets for fuzzy search
-	if len(tickets) > 50 {
-		tickets = tickets[:50]
-	}
+
 
 	// Create assignments for each day
 	assignments := make([]DayTicketAssignment, len(missingDays))
@@ -296,11 +326,15 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 
 		// Ask if they want to skip this day
 		var skipDay bool
-		err := huh.NewConfirm().
-			Title("Skip this day?").
-			Value(&skipDay).
-			Run()
+		err := huh.NewForm(huh.NewGroup(
+			huh.NewConfirm().
+				Title("Skip this day?").
+				Value(&skipDay),
+		)).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap()).Run()
 
+		if errors.Is(err, huh.ErrUserAborted) {
+			return
+		}
 		if err != nil || skipDay {
 			day.TicketKey = "SKIP"
 			continue
@@ -323,16 +357,19 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 
 		// Ticket selection
 		var selectedTicket string
-		err = huh.NewSelect[string]().
-			Title("Select ticket for this day").
-			Description("Type to search through tickets").
-			Options(ticketOptions...).
-			Filtering(true).
-			Height(10).
-			Value(&selectedTicket).
-			WithTheme(huh.ThemeCharm()).
-			Run()
+		err = huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select ticket for this day").
+				Description("Type to search through tickets").
+				Options(ticketOptions...).
+				Filtering(true).
+				Height(10).
+				Value(&selectedTicket),
+		)).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap()).Run()
 
+		if errors.Is(err, huh.ErrUserAborted) {
+			return
+		}
 		if err != nil {
 			day.TicketKey = "SKIP"
 			continue
@@ -341,6 +378,9 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 		// Handle create new ticket
 		if selectedTicket == "create" {
 			createdTicket, createdTitle, err := createNewTicket(jiraClient)
+			if errors.Is(err, huh.ErrUserAborted) {
+				return
+			}
 			if err != nil {
 				fmt.Printf("❌ Error creating ticket: %v\n", err)
 				day.TicketKey = "SKIP"
@@ -352,18 +392,22 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 
 		// Handle custom ticket
 		if selectedTicket == "custom" {
-			err = huh.NewInput().
-				Title("Enter ticket key").
-				Placeholder("PROJ-123").
-				Value(&selectedTicket).
-				Validate(func(s string) error {
-					if s == "" {
-						return fmt.Errorf("ticket key is required")
-					}
-					return nil
-				}).
-				Run()
+			err = huh.NewForm(huh.NewGroup(
+				huh.NewInput().
+					Title("Enter ticket key").
+					Placeholder("PROJ-123").
+					Value(&selectedTicket).
+					Validate(func(s string) error {
+						if s == "" {
+							return fmt.Errorf("ticket key is required")
+						}
+						return nil
+					}),
+			)).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap()).Run()
 
+			if errors.Is(err, huh.ErrUserAborted) {
+				return
+			}
 			if err != nil {
 				day.TicketKey = "SKIP"
 				continue
@@ -389,9 +433,12 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 					Placeholder("Working on tasks...").
 					Value(&day.Description),
 			),
-		)
+		).WithKeyMap(newKeyMap())
 
 		err = form.Run()
+		if errors.Is(err, huh.ErrUserAborted) {
+			return
+		}
 		if err != nil {
 			day.TicketKey = "SKIP"
 			continue
@@ -448,13 +495,13 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 
 	// Final confirmation
 	var confirmLog bool
-	err = huh.NewConfirm().
-		Title(fmt.Sprintf("Log work for %d days?", len(validAssignments))).
-		Value(&confirmLog).
-		Run()
+	err = huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title(fmt.Sprintf("Log work for %d days?", len(validAssignments))).
+			Value(&confirmLog),
+	)).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap()).Run()
 
-	if err != nil || !confirmLog {
-		fmt.Println("Cancelled.")
+	if errors.Is(err, huh.ErrUserAborted) || !confirmLog {
 		return
 	}
 
@@ -481,47 +528,89 @@ func logToCustomTickets(ws *jira.WorklogService, jiraClient *jira.JiraClient, mi
 	fmt.Printf("\n🎉 Completed: %d/%d days logged successfully\n", successCount, len(validAssignments))
 }
 
-func showDashboard(ws *jira.WorklogService, cfg *config.Config) {
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.AdaptiveColor{Light: "#7D56F4", Dark: "#7D56F4"}).
-		Padding(1, 2).
-		Margin(1, 0).
-		Width(60).
-		Align(lipgloss.Center)
-
-	userInfoStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666")).
-		Italic(true).
-		Margin(0, 0, 1, 0)
-
-	// Beautiful gradient header
-	fmt.Println(headerStyle.Render("LogS"))
-	fmt.Println(userInfoStyle.Render(fmt.Sprintf("%s | %s", cfg.JiraEmail, cfg.JiraBaseURL)))
-
-	// Load worklog stats with clean status
-	var dailyHours map[string]float64
-	var err error
-
-	shared.StatusBar("📊 Fetching worklog data from JIRA API")
-
-	now := time.Now()
-	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
-	period := shared.Period{Start: startOfYear, End: now}
-
-	_, dailyHours, _, err = ws.FetchWorklogs(period)
-
-	if err == nil {
-		shared.StatusComplete()
-	} else {
-		shared.StatusFailed()
-		fmt.Printf("Error loading worklog data: %v\n", err)
-		return
+func createNewTicket(jiraClient *jira.JiraClient) (string, string, error) {
+	projects, err := jiraClient.GetProjects()
+	if err != nil {
+		return "", "", fmt.Errorf("fetching projects: %w", err)
 	}
 
-	// Calculate statistics
-	// Reuse the same now and startOfYear variables from above
+	if len(projects) == 0 {
+		return "", "", fmt.Errorf("no projects available")
+	}
+
+	projectOptions := []huh.Option[string]{}
+	for _, project := range projects {
+		projectOptions = append(projectOptions,
+			huh.NewOption(fmt.Sprintf("%s - %s", project.Key, project.Name), project.Key))
+	}
+
+	var selectedProject string
+	err = huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("Select project").
+			Options(projectOptions...).
+			Filtering(true).
+			Height(10).
+			Value(&selectedProject),
+	)).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap()).Run()
+
+	if err != nil {
+		return "", "", err
+	}
+
+	var summary string
+	var description string
+	issueType := "Task"
+
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Ticket summary").
+				Placeholder("Brief description of the work").
+				Value(&summary).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("summary is required")
+					}
+					return nil
+				}),
+
+			huh.NewText().
+				Title("Description (optional)").
+				Placeholder("Detailed description...").
+				Value(&description),
+
+			huh.NewInput().
+				Title("Issue type").
+				Placeholder("Task").
+				Value(&issueType).
+				Validate(func(s string) error {
+					if s == "" {
+						return fmt.Errorf("issue type is required")
+					}
+					return nil
+				}),
+		),
+	).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap())
+
+	err = form.Run()
+	if err != nil {
+		return "", "", err
+	}
+
+	fmt.Printf("\n🎫 Creating ticket in %s...\n", selectedProject)
+	ticketKey, err := jiraClient.CreateIssue(selectedProject, summary, description, issueType)
+	if err != nil {
+		return "", "", fmt.Errorf("creating ticket: %w", err)
+	}
+
+	fmt.Printf("✅ Created ticket: %s\n", ticketKey)
+	return ticketKey, summary, nil
+}
+
+func showDashboard(ws *jira.WorklogService, dailyHours map[string]float64) {
+	now := time.Now()
+	startOfYear := time.Date(now.Year(), 1, 1, 0, 0, 0, 0, now.Location())
 
 	totalLoggedHours := 0.0
 	daysLogged := 0
