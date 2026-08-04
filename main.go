@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -96,7 +97,7 @@ func main() {
 	period := shared.Period{Start: startOfYear, End: now}
 
 	shared.StatusBar("📊 Fetching worklog data from JIRA API")
-	_, dailyHours, _, fetchErr := ws.FetchWorklogs(period)
+	ticketLogs, dailyHours, _, fetchErr := ws.FetchWorklogs(period)
 	if fetchErr != nil {
 		shared.StatusFailed()
 		fmt.Printf("Error loading worklog data: %v\n", fetchErr)
@@ -107,14 +108,9 @@ func main() {
 	showDashboard(ws, dailyHours)
 
 	missingDays := findMissingWorklogDays(ws, dailyHours)
+	hasMissing := len(missingDays) > 0
 
-	if len(missingDays) == 0 {
-		fmt.Println("\n✓ All working days have logged time!")
-		return
-	}
-
-	// Show missing days with beautiful styling
-	if len(missingDays) > 0 {
+	if hasMissing {
 		missingStyle := lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#F77F00")).
@@ -136,18 +132,28 @@ func main() {
 
 		fmt.Println(missingTitle.Render("Missing Worklog Days"))
 		fmt.Println(missingStyle.Render(missingContent))
+	} else {
+		fmt.Println("\n✓ All working days have logged time!")
 	}
 
 	for {
+		options := []huh.Option[string]{
+			huh.NewOption("Show this month report", "month"),
+			huh.NewOption("Show tickets logged (YTD)", "tickets"),
+		}
+		if hasMissing {
+			options = append(options,
+				huh.NewOption("Log missing days to custom tickets", "custom"),
+				huh.NewOption("Log missing days to single ticket", "single"),
+			)
+		}
+		options = append(options, huh.NewOption("Exit", "exit"))
+
 		var option string
 		err = huh.NewForm(huh.NewGroup(
 			huh.NewSelect[string]().
 				Title("What would you like to do?").
-				Options(
-					huh.NewOption("Log missing days to custom tickets", "custom"),
-					huh.NewOption("Log missing days to single ticket", "single"),
-					huh.NewOption("Exit", "exit"),
-				).
+				Options(options...).
 				Value(&option),
 		)).WithTheme(huh.ThemeCharm()).WithKeyMap(newKeyMap()).Run()
 
@@ -161,6 +167,10 @@ func main() {
 		}
 
 		switch option {
+		case "month":
+			showMonthlyReport(ws, dailyHours, ticketLogs)
+		case "tickets":
+			showTicketsLogged(ticketLogs)
 		case "single":
 			logToSingleTicket(ws, missingDays)
 		case "custom":
@@ -685,6 +695,218 @@ Progress: %.1f%%
 	fmt.Println(statsStyle.Render(statsContent))
 
 	fmt.Println() // Add some space
+}
+
+func showMonthlyReport(ws *jira.WorklogService, dailyHours map[string]float64, ticketLogs map[string]*shared.TicketWorklog) {
+	now := time.Now()
+	startOfMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
+	totalLoggedHours := 0.0
+	daysLogged := 0
+	workingDays := 0
+	leaveDays := 0
+	weekendDays := 0
+	var offDays []time.Time
+
+	for d := startOfMonth; d.Before(now) || d.Equal(now.Truncate(24*time.Hour)); d = d.AddDate(0, 0, 1) {
+		if d.After(now) {
+			continue
+		}
+
+		if ws.IsWeekend(d) {
+			weekendDays++
+		} else if ws.IsLeaveDay(d) {
+			leaveDays++
+			offDays = append(offDays, d)
+		} else {
+			workingDays++
+			dateStr := d.Format("2006-01-02")
+			if dailyHours[dateStr] > 0 {
+				daysLogged++
+				totalLoggedHours += dailyHours[dateStr]
+			}
+		}
+	}
+
+	requiredHours := float64(workingDays) * 8.0
+	percentage := (totalLoggedHours / requiredHours) * 100
+	if requiredHours == 0 {
+		percentage = 0
+	}
+
+	var statsColor lipgloss.Color
+	var statsTitle string
+	if percentage >= 90 {
+		statsColor = lipgloss.Color("#43BF6D")
+		statsTitle = "Excellent Progress"
+	} else if percentage >= 70 {
+		statsColor = lipgloss.Color("#FDFF90")
+		statsTitle = "Good Progress"
+	} else if percentage >= 50 {
+		statsColor = lipgloss.Color("#F77F00")
+		statsTitle = "Moderate Progress"
+	} else {
+		statsColor = lipgloss.Color("#FF5F87")
+		statsTitle = "Needs Attention"
+	}
+
+	statsStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(statsColor).
+		Padding(1, 2).
+		Margin(1, 0).
+		Width(60)
+
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(statsColor).
+		Margin(0, 0, 1, 0)
+
+	statsContent := fmt.Sprintf(`Days Logged: %d / %d working days
+Hours Logged: %.1f hours
+Required Hours: %.1f hours
+Leave Days: %d days
+Weekend Days: %d days
+Progress: %.1f%%`, daysLogged, workingDays, totalLoggedHours, requiredHours, leaveDays, weekendDays, percentage)
+
+	if len(offDays) > 0 {
+		var offLines []string
+		for _, d := range offDays {
+			offLines = append(offLines, fmt.Sprintf("  %s (%s)", d.Format("2006-01-02"), d.Format("Monday")))
+		}
+		statsContent += "\n\nOff Days:\n" + strings.Join(offLines, "\n")
+	}
+
+	statsContent += "\n\n" + createProgressBar(percentage)
+
+	fmt.Println(titleStyle.Render(fmt.Sprintf("%s - %s Report", statsTitle, now.Format("January 2006"))))
+	fmt.Println(statsStyle.Render(statsContent))
+
+	startStr := startOfMonth.Format(shared.DateFormat)
+	endStr := now.Format(shared.DateFormat)
+
+	var rows []ticketSummary
+	for _, t := range ticketLogs {
+		if t == nil {
+			continue
+		}
+		monthHours := 0.0
+		dateSet := make(map[string]time.Time)
+		for _, wl := range t.Logs {
+			started, err := time.Parse(shared.WorklogDateFormat, wl.Started)
+			if err != nil {
+				continue
+			}
+			date := started.Format(shared.DateFormat)
+			if date >= startStr && date <= endStr {
+				monthHours += float64(wl.TimeSpentSeconds) / shared.SecondsPerHour
+				dateSet[date] = started
+			}
+		}
+		if monthHours > 0 {
+			sortedKeys := make([]string, 0, len(dateSet))
+			for k := range dateSet {
+				sortedKeys = append(sortedKeys, k)
+			}
+			sort.Strings(sortedKeys)
+			dates := make([]string, 0, len(sortedKeys))
+			for _, k := range sortedKeys {
+				dates = append(dates, dateSet[k].Format("2 Jan"))
+			}
+			rows = append(rows, ticketSummary{Key: t.Key, Summary: t.Summary, Hours: monthHours, Dates: dates})
+		}
+	}
+
+	renderTicketsPanel(fmt.Sprintf("Tickets Logged - %s", now.Format("January 2006")), statsColor, rows)
+}
+
+type ticketSummary struct {
+	Key     string
+	Summary string
+	Hours   float64
+	Dates   []string
+}
+
+func wrapJoined(items []string, sep, indent string, width int) string {
+	if len(items) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString(indent)
+	lineLen := len(indent)
+	for i, item := range items {
+		piece := item
+		if i < len(items)-1 {
+			piece += sep
+		}
+		if i > 0 && lineLen+len(piece) > width {
+			b.WriteString("\n" + indent)
+			lineLen = len(indent)
+		}
+		b.WriteString(piece)
+		lineLen += len(piece)
+	}
+	return b.String()
+}
+
+func renderTicketsPanel(title string, accent lipgloss.Color, rows []ticketSummary) {
+	if len(rows) == 0 {
+		return
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].Hours > rows[j].Hours
+	})
+
+	keyWidth := 0
+	for _, r := range rows {
+		if len(r.Key) > keyWidth {
+			keyWidth = len(r.Key)
+		}
+	}
+	const panelInnerWidth = 56
+	summaryWidth := panelInnerWidth - keyWidth - 4 - 6 - 2
+
+	dateStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7DD3FC"))
+
+	var lines []string
+	for i, r := range rows {
+		summary := r.Summary
+		if len(summary) > summaryWidth {
+			summary = summary[:summaryWidth-3] + "..."
+		}
+		if i > 0 {
+			lines = append(lines, "")
+		}
+		lines = append(lines, fmt.Sprintf("%-*s    %5.1fh  %s", keyWidth, r.Key, r.Hours, summary))
+		if len(r.Dates) > 0 {
+			lines = append(lines, dateStyle.Render(wrapJoined(r.Dates, ", ", "    ", panelInnerWidth)))
+		}
+	}
+
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(accent).
+		Margin(0, 0, 1, 0)
+
+	panelStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(accent).
+		Padding(1, 2).
+		Margin(1, 0).
+		Width(60)
+
+	fmt.Println(titleStyle.Render(title))
+	fmt.Println(panelStyle.Render(strings.Join(lines, "\n")))
+}
+
+func showTicketsLogged(ticketLogs map[string]*shared.TicketWorklog) {
+	rows := make([]ticketSummary, 0, len(ticketLogs))
+	for _, t := range ticketLogs {
+		if t != nil && t.Total > 0 {
+			rows = append(rows, ticketSummary{Key: t.Key, Summary: t.Summary, Hours: t.Total})
+		}
+	}
+	renderTicketsPanel("Tickets Logged - Year to Date", lipgloss.Color("#7D56F4"), rows)
 }
 
 func createProgressBar(percentage float64) string {
